@@ -1,0 +1,27 @@
+{
+	"schemaVersion": 1,
+	"id": "uncannyencounters",
+	"version": "${version}",
+	"name": "Uncanny Encounters",
+	"description": "Uncanny cave encounters, beginning with the ceiling-dwelling Cave Angler.",
+	"license": "CC0-1.0",
+	"icon": "assets/uncannyencounters/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.ignilumen.uncannyencounters.UncannyEncounters"
+		],
+		"client": [
+			"com.ignilumen.uncannyencounters.client.UncannyEncountersClient"
+		],
+		"fabric-datagen": [
+			"com.ignilumen.uncannyencounters.client.UncannyEncountersDataGenerator"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~26.3",
+		"java": ">=25",
+		"fabric-api": "*"
+	}
+}

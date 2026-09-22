@@ -1,0 +1,64 @@
+# gradle
+
+.gradle/
+build/
+out/
+classes/
+
+# eclipse
+
+*.launch
+
+# idea
+
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# vscode
+
+.settings/
+.vscode/
+bin/
+.classpath
+.project
+
+# macos
+
+*.DS_Store
+
+# fabric
+
+run/
+
+# java
+
+hs_err_*.log
+replay_*.log
+*.hprof
+*.jfr
+
+# local verification and Blender preview backups
+/verification.log
+/client-verification.log
+/compile-verification.log
+reference/low_poly/*.blend1
+
+# Local tooling, notes and environment files
+/docs/
+.env
+.env.*
+!.env.example
+*.local
+*.log
+__pycache__/
+*.pyc
+Thumbs.db
+
+# Keep only the editable low-poly model sources; omit original imports and previews
+/reference/*
+!/reference/low_poly/
+/reference/low_poly/*
+!/reference/low_poly/cave_angler.bbmodel
+!/reference/low_poly/cave_angler.geometry.json

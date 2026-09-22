@@ -1,0 +1,4 @@
+# Normalize source files while retaining Windows batch line endings.
+* text=auto eol=lf
+/gradlew text eol=lf
+*.bat text eol=crlf

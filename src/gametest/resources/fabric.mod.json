@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "uncannyencounters-test",
+  "version": "1.0.0",
+  "name": "Uncanny Encounters Tests",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-gametest": ["com.ignilumen.uncannyencounters.CaveAnglerGameTests"],
+    "fabric-client-gametest": ["com.ignilumen.uncannyencounters.CaveAnglerClientTest"]
+  },
+  "depends": { "uncannyencounters": "*", "fabric-gametest-api-v1": "*" }
+}
