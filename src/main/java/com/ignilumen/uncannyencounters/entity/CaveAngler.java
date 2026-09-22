@@ -3,12 +3,15 @@ package com.ignilumen.uncannyencounters.entity;
 import java.util.Comparator;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.network.syncher.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
+import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.Difficulty;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.*;
@@ -17,10 +20,17 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.monster.RangedAttackMob;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.*;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SpeleothemBlock;
+import net.minecraft.world.level.block.state.properties.SpeleothemThickness;
+import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import net.minecraft.world.phys.*;
+import net.minecraft.world.phys.shapes.Shapes;
+import org.jspecify.annotations.Nullable;
 
 /** A stationary ceiling ambusher. All capture state and movement are server-authoritative. */
 public final class CaveAngler extends Monster {
@@ -69,15 +79,26 @@ public final class CaveAngler extends Monster {
 
     public static boolean canSpawn(EntityType<CaveAngler> type, ServerLevelAccessor level,
                                    EntitySpawnReason reason, BlockPos pos, RandomSource random) {
-        // NaturalSpawner samples air positions at all heights; this is deliberately not ON_GROUND.
-        if (level.getDifficulty() == Difficulty.PEACEFUL || pos.getY() >= 48 || level.canSeeSky(pos)
-                || !Monster.isDarkEnoughToSpawn(level, pos, random)) return false;
-        BlockPos ceiling = pos.above(2);
-        if (!supports(level, ceiling)) return false;
-        AABB space = new AABB(pos.getX() - 0.25, ceiling.getY() - 1.75, pos.getZ() - 0.25,
-                pos.getX() + 1.25, ceiling.getY(), pos.getZ() + 1.25);
-        return level.noCollision(space) && level.getBlockState(pos.below()).isAir()
-                && level.getBlockState(pos.below(2)).isAir() && level.getFluidState(pos).isEmpty();
+        if (level.getDifficulty() == Difficulty.PEACEFUL || pos.getY() >= 48) return false;
+        ServerLevel serverLevel = level.getLevel();
+        BlockPos ceiling = findCeiling(serverLevel, type, Vec3.atBottomCenterOf(pos), null);
+        if (ceiling == null) return false;
+        Vec3 point = attachedPosition(type, ceiling);
+        BlockPos feet = BlockPos.containing(point);
+        // Validate the actual destination, not just the random position below it.
+        if (point.y >= 48 || level.canSeeSky(feet) || !Monster.isDarkEnoughToSpawn(level, feet, random)
+                || !level.getBlockState(feet.below()).isAir()
+                || !level.getBlockState(feet.below(2)).isAir()) return false;
+        if (reason == EntitySpawnReason.NATURAL) {
+            Player nearest = serverLevel.getNearestPlayer(point.x, point.y, point.z, -1, false);
+            if (nearest == null) return false;
+            double distance = nearest.distanceToSqr(point);
+            int maximum = type.getCategory().getDespawnDistance();
+            if (distance <= 24 * 24 || distance > maximum * maximum) return false;
+            var spawn = serverLevel.getRespawnData();
+            if (spawn.dimension() == serverLevel.dimension() && spawn.pos().closerToCenterThan(point, 24)) return false;
+        }
+        return true;
     }
 
     private static boolean supports(LevelReader level, BlockPos pos) {
@@ -85,7 +106,12 @@ public final class CaveAngler extends Monster {
     }
 
     @Override public boolean checkSpawnRules(LevelAccessor level, EntitySpawnReason reason) {
-        return true; // The registered ceiling predicate replaces Mob's ground-block check.
+        // NaturalSpawner calls this before checking the entity's final obstruction.
+        if (reason == EntitySpawnReason.NATURAL && level instanceof ServerLevel serverLevel) {
+            findAnchor(serverLevel);
+            return anchor != null;
+        }
+        return true;
     }
 
     @Override public int getMaxSpawnClusterSize() { return 1; }
@@ -102,30 +128,39 @@ public final class CaveAngler extends Monster {
         return result;
     }
 
-    private void findAnchor(ServerLevel level) {
-        BlockPos start = BlockPos.containing(getX(), getY(), getZ());
-        // Spawn eggs apply a ground-placement offset; when used on the underside
-        // of a ceiling the initial body may overlap the clicked block. Include
-        // the current block and resolve the anchor before the first physics tick.
+    private static Vec3 attachedPosition(EntityType<?> type, BlockPos ceiling) {
+        return new Vec3(ceiling.getX() + 0.5, ceiling.getY() - type.getHeight(), ceiling.getZ() + 0.5);
+    }
+
+    private static @Nullable BlockPos findCeiling(ServerLevel level, EntityType<?> type, Vec3 from, @Nullable Entity ignore) {
+        BlockPos start = BlockPos.containing(from);
+        // Shared by natural spawning, eggs and commands. Stop at the first solid
+        // surface so the search cannot jump through a floor into another cave.
         for (int i = 0; i <= ANCHOR_SEARCH_RANGE; i++) {
             BlockPos candidate = start.above(i);
-            if (!level.hasChunkAt(candidate)) return;
+            if (candidate.getY() > level.getMaxY() || !level.hasChunkAt(candidate)) return null;
             var shape = level.getBlockState(candidate).getCollisionShape(level, candidate);
-            if (!shape.isEmpty() && candidate.getY() + shape.max(Direction.Axis.Y) > getY() + 0.001) {
+            if (!shape.isEmpty() && candidate.getY() + shape.max(Direction.Axis.Y) > from.y + 0.001) {
                 if (supports(level, candidate)) {
-                    Vec3 point = new Vec3(candidate.getX() + 0.5, candidate.getY() - getBbHeight(), candidate.getZ() + 0.5);
-                    if (level.noCollision(this, getBoundingBox().move(point.subtract(position())))) {
-                        anchor = candidate;
-                        everAnchored = true;
-                        setPos(point);
-                        setNoGravity(true);
-                        setDeltaMovement(Vec3.ZERO);
-                        resetFallDistance();
-                    }
+                    AABB space = type.getSpawnAABB(attachedPosition(type, candidate));
+                    if (level.noCollision(ignore, space) && !level.containsAnyLiquid(space)
+                            && level.isUnobstructed(ignore, Shapes.create(space))) return candidate;
                 }
-                return;
+                return null;
             }
         }
+        return null;
+    }
+
+    private void findAnchor(ServerLevel level) {
+        BlockPos ceiling = findCeiling(level, getType(), position(), this);
+        if (ceiling == null) return;
+        anchor = ceiling;
+        everAnchored = true;
+        setPos(attachedPosition(getType(), ceiling));
+        setNoGravity(true);
+        setDeltaMovement(Vec3.ZERO);
+        resetFallDistance();
     }
 
     @Override public void tick() {
@@ -325,6 +360,32 @@ public final class CaveAngler extends Monster {
         boolean hurt = super.hurtServer(level, source, amount);
         if (!isAlive()) release(false);
         return hurt;
+    }
+
+    @Override public void die(DamageSource source) {
+        boolean transform = !isRemoved() && !dead;
+        super.die(source);
+        if (transform && dead && level() instanceof ServerLevel level) {
+            release(false);
+            var state = Blocks.POINTED_DRIPSTONE.defaultBlockState()
+                    .setValue(SpeleothemBlock.TIP_DIRECTION, Direction.DOWN)
+                    .setValue(SpeleothemBlock.THICKNESS, SpeleothemThickness.TIP);
+            // FallingBlockEntity.fall removes a world block. Decode the vanilla
+            // entity state instead, since the stalactite originates from a mob.
+            CompoundTag data = new CompoundTag();
+            data.put("BlockState", NbtUtils.writeBlockState(state));
+            FallingBlockEntity spike = new FallingBlockEntity(EntityTypes.FALLING_BLOCK, level);
+            spike.load(TagValueInput.create(ProblemReporter.DISCARDING, level.registryAccess(), data));
+            spike.snapTo(getX(), getY(), getZ(), 0, 0);
+            spike.setStartPos(spike.blockPosition());
+            spike.blocksBuilding = true;
+            // Match 26.3's vanilla falling stalactite tip damage and landing sound.
+            spike.setHurtsEntities(6, 40);
+            spike.disableDrop();
+            spike.dropItem = false;
+            level.addFreshEntity(spike);
+            remove(RemovalReason.KILLED);
+        }
     }
 
     @Override public void remove(RemovalReason reason) {

@@ -16,7 +16,7 @@ import net.minecraft.world.level.levelgen.Heightmap;
 public final class ModEntities {
     public static final EntityType<CaveAngler> CAVE_ANGLER = register("cave_angler",
             EntityType.Builder.of(CaveAngler::new, MobCategory.MONSTER)
-                    .sized(1.5F, 1.75F).eyeHeight(0.4F).clientTrackingRange(10).updateInterval(1));
+                    .sized(1.0F, 1.75F).eyeHeight(0.4F).clientTrackingRange(10).updateInterval(1));
     public static final EntityType<AnglerTongue> ANGLER_TONGUE = register("angler_tongue",
             EntityType.Builder.of(AnglerTongue::new, MobCategory.MISC)
                     .sized(0.45F, 1).clientTrackingRange(10).updateInterval(1).noSave().noSummon());
@@ -34,7 +34,7 @@ public final class ModEntities {
         FabricDefaultAttributeRegistry.register(CAVE_ANGLER, CaveAngler.createAttributes());
         SpawnPlacements.register(CAVE_ANGLER, SpawnPlacementTypes.NO_RESTRICTIONS,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CaveAngler::canSpawn);
-        BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.MONSTER, CAVE_ANGLER, 6, 1, 1);
+        BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.MONSTER, CAVE_ANGLER, 10, 1, 1);
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS)
                 .register(entries -> entries.accept(CAVE_ANGLER_SPAWN_EGG));
     }

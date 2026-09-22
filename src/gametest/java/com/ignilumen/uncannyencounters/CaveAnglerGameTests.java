@@ -3,12 +3,16 @@ package com.ignilumen.uncannyencounters;
 import com.ignilumen.uncannyencounters.entity.*;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.entity.EntityTypes;
+import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.item.FallingBlockEntity;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SpeleothemBlock;
 import net.minecraft.world.phys.Vec3;
 
 /** Runs against the actual 26.3 server, including entity ticks, collisions and fall damage. */
@@ -26,6 +30,68 @@ public final class CaveAnglerGameTests {
         pig.getAttribute(Attributes.MOVEMENT_SPEED).setBaseValue(0);
         angler.setLastHurtByMob(pig);
         return new Scene(angler, pig, test.absoluteVec(new Vec3(0, 1, 0)).y);
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20, padding = 25)
+    public void naturalPlacementFindsCeilingAndRejectsOccupiedSpace(GameTestHelper test) {
+        test.setBlock(3, 9, 3, Blocks.STONE);
+        Vec3 start = test.absoluteVec(new Vec3(3.5, 1, 3.5));
+        CaveAngler first = ModEntities.CAVE_ANGLER.create(test.getLevel(), EntitySpawnReason.NATURAL);
+        first.snapTo(start, 0, 0);
+        test.assertTrue(first.checkSpawnRules(test.getLevel(), EntitySpawnReason.NATURAL),
+                "Natural placement must find a ceiling eight blocks above the sampled position");
+        test.assertTrue(Math.abs(first.getY() - (start.y + 8 - first.getBbHeight())) < 0.001,
+                "Obstruction checks must run at the attached position");
+        test.getLevel().addFreshEntity(first);
+        CaveAngler second = ModEntities.CAVE_ANGLER.create(test.getLevel(), EntitySpawnReason.NATURAL);
+        second.snapTo(start.add(0, 2, 0), 0, 0);
+        test.assertTrue(!second.checkSpawnRules(test.getLevel(), EntitySpawnReason.NATURAL),
+                "Different sampled heights must not stack anglers at the same ceiling position");
+        second.discard();
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20, padding = 25)
+    public void ceilingSearchStopsAtFirstSolidSurface(GameTestHelper test) {
+        test.setBlock(3, 9, 3, Blocks.STONE);
+        test.setBlock(3, 4, 3, Blocks.STONE);
+        Vec3 start = test.absoluteVec(new Vec3(3.5, 1, 3.5));
+        CaveAngler angler = ModEntities.CAVE_ANGLER.create(test.getLevel(), EntitySpawnReason.NATURAL);
+        angler.snapTo(start, 0, 0);
+        test.assertTrue(angler.checkSpawnRules(test.getLevel(), EntitySpawnReason.NATURAL), "Lower ceiling is valid");
+        test.assertTrue(Math.abs(angler.getY() - (start.y + 3 - angler.getBbHeight())) < 0.001,
+                "Search must not pass through the lower ceiling into another cave");
+        angler.discard();
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 100, padding = 25)
+    public void deathCreatesOneDamagingStalactite(GameTestHelper test) {
+        Scene scene = scene(test);
+        scene.prey.getAttribute(Attributes.MAX_HEALTH).setBaseValue(100);
+        scene.prey.setHealth(100);
+        var level = test.getLevel();
+        var area = scene.angler.getBoundingBox().inflate(1, 10, 1);
+        test.runAtTickTime(25, () -> {
+            test.assertTrue(scene.angler.captive() == scene.prey, "Must be holding the victim before death");
+            BlockPos body = scene.angler.blockPosition();
+            // This non-colliding block must survive the transformation, unlike FallingBlockEntity.fall's factory.
+            level.setBlockAndUpdate(body, Blocks.SHORT_GRASS.defaultBlockState());
+            scene.angler.hurtServer(level, level.damageSources().generic(), 1000);
+            scene.angler.die(level.damageSources().generic());
+            var spikes = level.getEntitiesOfClass(FallingBlockEntity.class, area);
+            test.assertTrue(scene.angler.isRemoved() && scene.angler.captive() == null, "Death must transform and release immediately");
+            test.assertTrue(spikes.size() == 1, "Repeated death calls must not duplicate the spike");
+            test.assertTrue(spikes.getFirst().getBlockState().is(Blocks.POINTED_DRIPSTONE)
+                    && spikes.getFirst().getBlockState().getValue(SpeleothemBlock.TIP_DIRECTION) == Direction.DOWN,
+                    "Death must create a downward-pointing vanilla dripstone");
+            test.assertTrue(level.getBlockState(body).is(Blocks.SHORT_GRASS), "Transformation must not erase a world block");
+        });
+        test.runAtTickTime(80, () -> {
+            test.assertTrue(scene.prey.getHealth() < 100, "Falling spike must hurt the released victim below");
+            test.assertTrue(level.getEntitiesOfClass(FallingBlockEntity.class, area).isEmpty(), "Spike must break on landing");
+            test.succeed();
+        });
     }
 
     @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 60, padding = 25)
@@ -121,6 +187,8 @@ public final class CaveAnglerGameTests {
             test.assertTrue(tongue != null, "Must capture before removal");
             scene.angler.discard();
             test.assertTrue(tongue.isRemoved() && scene.angler.captive() == null, "Removing owner must clean up immediately");
+            test.assertTrue(test.getLevel().getEntitiesOfClass(FallingBlockEntity.class,
+                    scene.angler.getBoundingBox().inflate(1)).isEmpty(), "Removal without death must not trigger a stalactite");
             test.assertTrue(!scene.prey.isNoGravity(), "Released victim keeps normal gravity");
             test.succeed();
         });
