@@ -39,4 +39,4 @@ Windows：
 
 ## License
 
-CC0-1.0
+LGPL-3.0 license
