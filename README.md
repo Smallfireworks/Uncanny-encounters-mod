@@ -39,4 +39,4 @@ Windows：
 
 ## License
 
-LGPL-3.0 license
+LGPL-3.0-only。许可证全文见 `COPYING.LESSER`；LGPL 是在 GPL-3.0 基础上附加的许可，GPL-3.0 全文见 `COPYING`。

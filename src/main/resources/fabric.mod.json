@@ -4,7 +4,7 @@
 	"version": "${version}",
 	"name": "Uncanny Encounters",
 	"description": "Uncanny cave encounters, beginning with the ceiling-dwelling Cave Angler.",
-	"license": "CC0-1.0",
+	"license": "LGPL-3.0-only",
 	"icon": "assets/uncannyencounters/icon.png",
 	"environment": "*",
 	"entrypoints": {
