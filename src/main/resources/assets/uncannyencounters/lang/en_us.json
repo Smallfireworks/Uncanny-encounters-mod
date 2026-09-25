@@ -1,5 +1,11 @@
 {
   "entity.uncannyencounters.cave_angler": "Cave Angler",
   "entity.uncannyencounters.angler_tongue": "Cave Angler's Tongue",
-  "item.uncannyencounters.cave_angler_spawn_egg": "Cave Angler Spawn Egg"
+  "item.uncannyencounters.cave_angler_spawn_egg": "Cave Angler Spawn Egg",
+  "entity.uncannyencounters.zombie_player": "Zombie Player",
+  "entity.uncannyencounters.zombie_player.named": "%s's Zombie",
+  "item.uncannyencounters.zombie_player_spawn_egg": "Zombie Player Spawn Egg",
+  "block.uncannyencounters.zombie_block": "Zombie Block",
+  "gamerule.uncannyencounters.zombie_player_spawning": "Spawn Zombie Players",
+  "gamerule.uncannyencounters.zombie_player_spawning.description": "Spawn a zombie near a player after their death."
 }

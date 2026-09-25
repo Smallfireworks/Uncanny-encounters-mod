@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "uncannyencounters:item/zombie_player_spawn_egg"
+  }
+}

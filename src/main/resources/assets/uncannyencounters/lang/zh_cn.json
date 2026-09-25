@@ -1,5 +1,11 @@
 {
   "entity.uncannyencounters.cave_angler": "洞穴垂钓者",
   "entity.uncannyencounters.angler_tongue": "洞穴垂钓者的舌头",
-  "item.uncannyencounters.cave_angler_spawn_egg": "洞穴垂钓者刷怪蛋"
+  "item.uncannyencounters.cave_angler_spawn_egg": "洞穴垂钓者刷怪蛋",
+  "entity.uncannyencounters.zombie_player": "僵尸玩家",
+  "entity.uncannyencounters.zombie_player.named": "%s的僵尸",
+  "item.uncannyencounters.zombie_player_spawn_egg": "僵尸玩家刷怪蛋",
+  "block.uncannyencounters.zombie_block": "僵尸方块",
+  "gamerule.uncannyencounters.zombie_player_spawning": "生成僵尸玩家",
+  "gamerule.uncannyencounters.zombie_player_spawning.description": "玩家死亡后在死亡点附近生成其僵尸。"
 }

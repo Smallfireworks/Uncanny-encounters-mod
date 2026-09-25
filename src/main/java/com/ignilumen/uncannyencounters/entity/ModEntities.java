@@ -1,6 +1,7 @@
 package com.ignilumen.uncannyencounters.entity;
 
 import com.ignilumen.uncannyencounters.UncannyEncounters;
+import com.ignilumen.uncannyencounters.entity.zombieplayer.ZombiePlayerSpawnEgg;
 import net.fabricmc.fabric.api.biome.v1.BiomeModifications;
 import net.fabricmc.fabric.api.biome.v1.BiomeSelectors;
 import net.fabricmc.fabric.api.creativetab.v1.CreativeModeTabEvents;
@@ -14,6 +15,13 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public final class ModEntities {
+    public static final EntityType<ZombiePlayer> ZOMBIE_PLAYER = register("zombie_player",
+            EntityType.Builder.of(ZombiePlayer::new, MobCategory.MONSTER)
+                    .sized(0.6F, 1.8F).eyeHeight(1.62F).clientTrackingRange(10).updateInterval(1));
+    public static final Item ZOMBIE_PLAYER_SPAWN_EGG = Registry.register(BuiltInRegistries.ITEM,
+            UncannyEncounters.id("zombie_player_spawn_egg"), new ZombiePlayerSpawnEgg(new Item.Properties()
+                    .setId(ResourceKey.create(Registries.ITEM, UncannyEncounters.id("zombie_player_spawn_egg")))
+                    .spawnEgg(ZOMBIE_PLAYER)));
     public static final EntityType<CaveAngler> CAVE_ANGLER = register("cave_angler",
             EntityType.Builder.of(CaveAngler::new, MobCategory.MONSTER)
                     .sized(1.0F, 1.75F).eyeHeight(0.4F).clientTrackingRange(10).updateInterval(1));
@@ -31,12 +39,16 @@ public final class ModEntities {
     }
 
     public static void initialize() {
+        FabricDefaultAttributeRegistry.register(ZOMBIE_PLAYER, ZombiePlayer.createAttributes());
         FabricDefaultAttributeRegistry.register(CAVE_ANGLER, CaveAngler.createAttributes());
         SpawnPlacements.register(CAVE_ANGLER, SpawnPlacementTypes.NO_RESTRICTIONS,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CaveAngler::canSpawn);
         BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.MONSTER, CAVE_ANGLER, 10, 1, 1);
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS)
-                .register(entries -> entries.accept(CAVE_ANGLER_SPAWN_EGG));
+                .register(entries -> {
+                    entries.accept(CAVE_ANGLER_SPAWN_EGG);
+                    entries.accept(ZOMBIE_PLAYER_SPAWN_EGG);
+                });
     }
 
     private ModEntities() {}
