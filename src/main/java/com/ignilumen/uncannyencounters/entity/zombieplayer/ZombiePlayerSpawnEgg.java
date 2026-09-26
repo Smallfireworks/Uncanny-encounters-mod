@@ -49,7 +49,8 @@ public final class ZombiePlayerSpawnEgg extends SpawnEggItem {
         if (zombie == null) return InteractionResult.FAIL;
         if (player != null) zombie.bind(player.getUUID(), ResolvableProfile.createResolved(player.getGameProfile()),
                 ZombiePlayer.skinParts(player), player.getMainArm() == HumanoidArm.LEFT, zombie.blockPosition(),
-                level.getGameTime() + ZombiePlayerSpawns.LIFETIME, false);
+                level.getGameTime() + ZombiePlayerSpawns.LIFETIME, false,
+                ZombiePlayerSpawns.get(level.getServer()).evolves(level, player.getUUID()));
         stack.consume(1, player);
         level.gameEvent(player, GameEvent.ENTITY_PLACE, pos);
         return InteractionResult.SUCCESS;

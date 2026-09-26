@@ -7,5 +7,11 @@
   "item.uncannyencounters.zombie_player_spawn_egg": "Zombie Player Spawn Egg",
   "block.uncannyencounters.zombie_block": "Zombie Block",
   "gamerule.uncannyencounters.zombie_player_spawning": "Spawn Zombie Players",
-  "gamerule.uncannyencounters.zombie_player_spawning.description": "Spawn a zombie near a player after their death."
+  "gamerule.uncannyencounters.zombie_player_spawning.description": "Spawn a zombie near a player after their death.",
+  "gamerule.uncannyencounters.zombie_player_evolution": "Evolve Zombie Players",
+  "gamerule.uncannyencounters.zombie_player_evolution.description": "After players have killed enough of someone's zombies, that player's next zombies fight like PvP veterans.",
+  "gamerule.uncannyencounters.zombie_player_evolution_defeats": "Zombie Player Defeats Before Evolving",
+  "gamerule.uncannyencounters.zombie_player_evolution_defeats.description": "How many of a player's zombies must be killed by players before that player's zombies evolve.",
+  "commands.uncannyencounters.zombieplayer.defeats": "%s's zombies have been defeated %s times (evolves at %s)",
+  "commands.uncannyencounters.zombieplayer.reset": "Reset the zombie defeat count of %s"
 }

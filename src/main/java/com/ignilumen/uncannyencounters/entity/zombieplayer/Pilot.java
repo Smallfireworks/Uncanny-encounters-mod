@@ -10,6 +10,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
@@ -33,7 +34,7 @@ import org.jspecify.annotations.Nullable;
 public final class Pilot {
     private static final int PLAN_BUDGET = 400, PLAN_INTERVAL = 10, RETRY_DELAY = 30, AVOID_TICKS = 200,
             STALL_TICKS = 30, STEP_TIMEOUT = 600, BREAK_DELAY = 5, MAX_JUMPS = 4;
-    private static final double REACH = 4.5, SNEAK = 0.3;
+    private static final double REACH = 4.5, SNEAK = 0.3, FAST_BRIDGE = 0.6;
 
     private final ZombiePlayer mob;
     private final PreciseMoveControl steering;
@@ -45,9 +46,10 @@ public final class Pilot {
     private List<Step> path = List.of();
     private int index, planDelay;
     // Progress of the current step.
-    private int stepTicks, stallTicks, breakDelay, jumps, crackStage = -1;
+    private int stepTicks, stallTicks, jumps, crackStage = -1;
+    private long nextDigAt;
     private double bestDistance = Double.MAX_VALUE;
-    private boolean placed;
+    private boolean placed, runUp, jumped;
     private @Nullable BlockPos mining;
     private @Nullable BlockState miningState;
     private float miningProgress;
@@ -121,14 +123,14 @@ public final class Pilot {
             floor = step.floor();
             swimming = Double.isNaN(floor);
         } else {
-            if (!mob.onGround() && !mob.isInWater()) return; // replan once landed
+            if (!mob.onGround() && !mob.isInWater() && !mob.onClimbable()) return; // replan once landed
             from = feetCell();
             swimming = mob.isInWater() && !mob.onGround();
-            floor = swimming ? Double.NaN : mob.getY();
+            floor = swimming ? Double.NaN : mob.onClimbable() && !mob.onGround() ? from.getY() : mob.getY();
         }
         anchor = step;
         planned = desired;
-        Terrain terrain = new Terrain(level, editing);
+        Terrain terrain = new Terrain(level, editing, mob.evolved());
         if (step != null) terrain.commit(step);
         search = new RoutePlanner(terrain, from, floor, swimming, desired, avoid.keySet());
         planDelay = PLAN_INTERVAL;
@@ -165,7 +167,6 @@ public final class Pilot {
             fail(level, step);
             return;
         }
-        if (breakDelay > 0) breakDelay--;
         for (BlockPos door : step.opens()) {
             BlockState state = level.getBlockState(door);
             if (!Terrain.openable(state)) continue;
@@ -175,16 +176,32 @@ public final class Pilot {
             }
             open(level, door, state);
         }
+        // Cheapest block first: glass set into an obsidian wall may already open a line for a hit.
+        BlockPos next = null;
+        BlockState nextState = null;
+        float fastest = -1;
         for (BlockPos pos : step.breaks()) {
             BlockState state = level.getBlockState(pos);
             if (state.getCollisionShape(level, pos).isEmpty()) continue;
-            mine(level, step, pos, state); // mining time is bounded by the block itself, not the step timeout
+            float speed = pos.equals(mining) ? Float.MAX_VALUE : Terrain.progress(level, state, pos, mob.evolved());
+            if (speed > fastest) {
+                fastest = speed;
+                next = pos;
+                nextState = state;
+            }
+        }
+        if (next != null) {
+            mine(level, step, next, nextState); // mining time is bounded by the block itself, not the step timeout
             return;
         }
         if (++stepTicks > STEP_TIMEOUT) {
             fail(level, step);
         } else if (step.kind() == Step.Kind.PILLAR) {
             pillar(level, step);
+        } else if (step.kind() == Step.Kind.GAP_JUMP) {
+            gapJump(level, step);
+        } else if (step.kind() == Step.Kind.CLIMB) {
+            climb(level, step);
         } else if (step.place() != null && !placed) {
             bridge(level, step);
         } else {
@@ -206,30 +223,52 @@ public final class Pilot {
     }
 
     private void mine(ServerLevel level, Step step, BlockPos pos, BlockState state) {
-        if (!level.getGameRules().get(GameRules.MOB_GRIEFING)) {
-            fail(level, step);
-            return;
-        }
         if (!within(pos, REACH)) {
             approach(level, step);
             return;
         }
+        switch (dig(level, pos, state)) {
+            case FAILED -> fail(level, step);
+            case DONE -> stallTicks = 0;
+            case WORKING -> {}
+        }
+    }
+
+    /**
+     * Mines a block the caller picked, such as the cheapest block between the zombie and a walled-in
+     * target, standing still. Any route is dropped, but progress on the same block carries over.
+     */
+    public boolean breach(ServerLevel level, BlockPos pos) {
+        if (desired != null || !path.isEmpty()) {
+            desired = planned = null;
+            search = null;
+            anchor = null;
+            path = List.of();
+            index = 0;
+            placed = false;
+            stepTicks = stallTicks = jumps = 0;
+            mob.setCrouching(false);
+        }
+        return dig(level, pos, level.getBlockState(pos)) != Dig.FAILED;
+    }
+
+    private enum Dig { WORKING, DONE, FAILED }
+
+    private Dig dig(ServerLevel level, BlockPos pos, BlockState state) {
+        if (!level.getGameRules().get(GameRules.MOB_GRIEFING)) return Dig.FAILED;
         mob.setEdgeGuard(true);
         mob.setSprinting(false);
         brake();
         mob.getLookControl().setLookAt(Vec3.atCenterOf(pos));
-        if (breakDelay > 0) return;
+        if (level.getGameTime() < nextDigAt) return Dig.WORKING;
         if (!pos.equals(mining) || state != miningState) {
             clearCrack(level);
             mining = pos.immutable();
             miningState = state;
             miningProgress = 0;
         }
-        float progress = Terrain.progress(level, state, pos);
-        if (progress <= 0) {
-            fail(level, step);
-            return;
-        }
+        float progress = Terrain.progress(level, state, pos, mob.evolved());
+        if (progress <= 0) return Dig.FAILED;
         // Same penalties as a player: airborne and underwater mining are five times slower.
         if (!mob.onGround()) progress /= 5;
         if (mob.isEyeInFluid(FluidTags.WATER)) progress /= 5;
@@ -242,19 +281,16 @@ public final class Pilot {
         if (miningProgress >= 1) {
             clearCrack(level);
             mining = null;
-            if (!TemporaryEdits.get(level).breakBlock(level, pos, mob)) {
-                fail(level, step);
-                return;
-            }
-            breakDelay = BREAK_DELAY;
-            stallTicks = 0;
-            return;
+            if (!TemporaryEdits.get(level).breakBlock(level, pos, mob)) return Dig.FAILED;
+            nextDigAt = level.getGameTime() + BREAK_DELAY;
+            return Dig.DONE;
         }
         int stage = Math.min(9, (int)(miningProgress * 10));
         if (stage != crackStage) {
             crackStage = stage;
             level.destroyBlockProgress(mob.getId(), pos, stage);
         }
+        return Dig.WORKING;
     }
 
     /** Sneak to the edge (the guard stops at the last supported spot) and build under the next cell. */
@@ -264,14 +300,16 @@ public final class Pilot {
             placed = true;
             return;
         }
-        mob.setCrouching(true);
+        // Evolved zombies speed-bridge: the edge guard alone keeps them on, so they need not creep.
+        boolean fast = mob.evolved();
+        mob.setCrouching(!fast);
         mob.setEdgeGuard(true);
         mob.setSprinting(false);
         Vec3 edge = center(step.from()).add((step.to().getX() - step.from().getX()) * 0.8, 0, (step.to().getZ() - step.from().getZ()) * 0.8);
-        steering.steer(edge, SNEAK, true);
+        steering.steer(edge, fast ? FAST_BRIDGE : SNEAK, true);
         mob.getLookControl().setLookAt(Vec3.atCenterOf(pos));
         double distance = horizontalDistance(edge);
-        if (!mob.onGround() || distance > 0.35 && !stalled(BRIDGING, distance, 8)) return;
+        if (!mob.onGround() || distance > (fast ? 0.45 : 0.35) && !stalled(BRIDGING, distance, 8)) return;
         if (!level.getEntitiesOfClass(LivingEntity.class, new AABB(pos), entity -> entity != mob).isEmpty()) return;
         if (!level.getGameRules().get(GameRules.MOB_GRIEFING) || !TemporaryEdits.get(level).placeBlock(level, pos, mob)) {
             fail(level, step);
@@ -279,6 +317,48 @@ public final class Pilot {
         }
         mob.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         placed = true;
+    }
+
+    /**
+     * Back up to the far side of the take-off block, then sprint and jump at its edge; the sprint
+     * jump's extra push carries the body across. Landing anywhere else counts as knocked off course.
+     */
+    private void gapJump(ServerLevel level, Step step) {
+        Vec3 start = center(step.from());
+        double dx = Integer.signum(step.to().getX() - step.from().getX()), dz = Integer.signum(step.to().getZ() - step.from().getZ());
+        if (!runUp) {
+            mob.setEdgeGuard(true);
+            mob.setSprinting(false);
+            Vec3 back = start.subtract(dx * 0.35, 0, dz * 0.35);
+            steering.steer(back, 1.0, true);
+            double distance = horizontalDistance(back);
+            if (mob.onGround() && (distance < 0.15 || stalled(APPROACHING, distance, 10))) runUp = true;
+            return;
+        }
+        mob.setEdgeGuard(false);
+        mob.setSprinting(true);
+        steering.steer(center(step.to()), 1.0, false);
+        double along = (mob.getX() - start.x) * dx + (mob.getZ() - start.z) * dz;
+        if (!jumped && mob.onGround() && along >= 0.3) {
+            mob.getJumpControl().jump();
+            jumped = true;
+        } else if (jumped && mob.onGround() && feetCell().getX() == step.to().getX() && feetCell().getZ() == step.to().getZ()) {
+            mob.setSprinting(false);
+            advance(level);
+        }
+    }
+
+    /** Up (holding jump) or down (letting go) a ladder, keeping to the middle of the column. */
+    private void climb(ServerLevel level, Step step) {
+        mob.setEdgeGuard(false);
+        mob.setSprinting(false);
+        mob.setCrouching(false);
+        boolean up = step.to().getY() > step.from().getY();
+        steering.steer(center(step.from()), 0.6, true);
+        if (up) mob.getJumpControl().jump();
+        double remaining = up ? step.to().getY() - mob.getY() : mob.getY() - step.to().getY();
+        if (remaining <= 0.01 || !up && mob.onGround()) advance(level);
+        else if (stalled(MOVING, remaining, STALL_TICKS)) fail(level, step);
     }
 
     private void pillar(ServerLevel level, Step step) {
@@ -316,7 +396,8 @@ public final class Pilot {
         Step.Kind kind = step.kind();
         boolean swimming = kind == Step.Kind.SWIM || Double.isNaN(step.floor());
         boolean careful = step.place() != null; // stepping onto a block just built
-        mob.setEdgeGuard(kind != Step.Kind.DESCEND && kind != Step.Kind.DIG_DOWN && !swimming);
+        boolean ladder = level.getBlockState(step.to()).is(BlockTags.CLIMBABLE); // stepping off the edge onto a ladder
+        mob.setEdgeGuard(kind != Step.Kind.DESCEND && kind != Step.Kind.DIG_DOWN && !swimming && !ladder);
         mob.setCrouching(careful);
         mob.setSprinting(sprint && !careful && !swimming && (kind == Step.Kind.WALK || kind == Step.Kind.DIAGONAL || kind == Step.Kind.ASCEND));
         Vec3 target = center(step.to());
@@ -330,7 +411,7 @@ public final class Pilot {
         mob.getLookControl().setLookAt(target.x, mob.getEyeY(), target.z);
         boolean straight = next != null && !stop && next.to().getX() - next.from().getX() == step.to().getX() - step.from().getX()
                 && next.to().getZ() - next.from().getZ() == step.to().getZ() - step.from().getZ();
-        if (feetCell().equals(step.to()) && (mob.onGround() || swimming && mob.isInWater())
+        if (feetCell().equals(step.to()) && (mob.onGround() || mob.onClimbable() || swimming && mob.isInWater())
                 && distance < (stop ? 0.3 : straight ? 0.7 : 0.4)) {
             advance(level);
             return;
@@ -363,7 +444,7 @@ public final class Pilot {
         clearCrack(level);
         mining = null;
         miningState = null;
-        placed = false;
+        placed = runUp = jumped = false;
         stepTicks = stallTicks = jumps = swingTicks = 0;
         progressPhase = -1;
         bestDistance = Double.MAX_VALUE;

@@ -7,5 +7,11 @@
   "item.uncannyencounters.zombie_player_spawn_egg": "僵尸玩家刷怪蛋",
   "block.uncannyencounters.zombie_block": "僵尸方块",
   "gamerule.uncannyencounters.zombie_player_spawning": "生成僵尸玩家",
-  "gamerule.uncannyencounters.zombie_player_spawning.description": "玩家死亡后在死亡点附近生成其僵尸。"
+  "gamerule.uncannyencounters.zombie_player_spawning.description": "玩家死亡后在死亡点附近生成其僵尸。",
+  "gamerule.uncannyencounters.zombie_player_evolution": "僵尸玩家进化",
+  "gamerule.uncannyencounters.zombie_player_evolution.description": "某位玩家的僵尸被玩家击败足够次数后，其之后的僵尸会像 PvP 高手一样战斗。",
+  "gamerule.uncannyencounters.zombie_player_evolution_defeats": "僵尸玩家进化所需击败次数",
+  "gamerule.uncannyencounters.zombie_player_evolution_defeats.description": "某位玩家的僵尸需要被玩家击败多少次，其僵尸才会进化。",
+  "commands.uncannyencounters.zombieplayer.defeats": "%s的僵尸已被击败 %s 次（%s 次时进化）",
+  "commands.uncannyencounters.zombieplayer.reset": "已清空%s的僵尸被击败次数"
 }

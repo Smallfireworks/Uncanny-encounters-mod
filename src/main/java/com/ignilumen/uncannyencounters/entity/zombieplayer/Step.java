@@ -11,7 +11,8 @@ import org.jspecify.annotations.Nullable;
  */
 record Step(Kind kind, BlockPos from, BlockPos to, double floor, List<BlockPos> opens, List<BlockPos> breaks,
             @Nullable BlockPos place) {
-    enum Kind { WALK, DIAGONAL, ASCEND, DESCEND, PILLAR, DIG_DOWN, SWIM }
+    /** {@code GAP_JUMP} and {@code CLIMB} are only planned for evolved zombies. */
+    enum Kind { WALK, DIAGONAL, ASCEND, DESCEND, PILLAR, DIG_DOWN, SWIM, GAP_JUMP, CLIMB }
 
     boolean hasActions() {
         return !opens.isEmpty() || !breaks.isEmpty() || place != null;
@@ -20,6 +21,7 @@ record Step(Kind kind, BlockPos from, BlockPos to, double floor, List<BlockPos> 
     /** Whether the body must come to rest on {@code to} before the next step starts. */
     boolean stopsBefore(@Nullable Step next) {
         return next == null || next.hasActions() || next.kind == Kind.PILLAR || next.kind == Kind.DIG_DOWN
-                || kind == Kind.DESCEND || kind == Kind.PILLAR || kind == Kind.DIG_DOWN;
+                || next.kind == Kind.GAP_JUMP || next.kind == Kind.CLIMB
+                || kind == Kind.DESCEND || kind == Kind.PILLAR || kind == Kind.DIG_DOWN || kind == Kind.GAP_JUMP;
     }
 }

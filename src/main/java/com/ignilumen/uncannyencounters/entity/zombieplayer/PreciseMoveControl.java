@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
 public final class PreciseMoveControl extends MoveControl<ZombiePlayer> {
     private Vec3 target = Vec3.ZERO;
     private boolean stop;
+    private float face = Float.NaN;
 
     public PreciseMoveControl(ZombiePlayer mob) {
         super(mob);
@@ -20,9 +21,15 @@ public final class PreciseMoveControl extends MoveControl<ZombiePlayer> {
 
     /** Heads for {@code point} this tick; with {@code stop} it arrives with no speed left. Call every tick. */
     public void steer(Vec3 point, double speedModifier, boolean stop) {
+        steer(point, speedModifier, stop, Float.NaN);
+    }
+
+    /** As {@link #steer(Vec3, double, boolean)}, but the body keeps facing {@code yaw}, strafing or backing off as needed. */
+    public void steer(Vec3 point, double speedModifier, boolean stop, float yaw) {
         target = point;
         this.speedModifier = speedModifier;
         this.stop = stop;
+        face = yaw;
         operation = Operation.MOVE_TO;
     }
 
@@ -60,7 +67,9 @@ public final class PreciseMoveControl extends MoveControl<ZombiePlayer> {
             ax *= limit / needed;
             az *= limit / needed;
         }
-        if (distance > 0.3 && wanted > 0.02) {
+        if (!Float.isNaN(face)) {
+            mob.setYRot(rotlerp(mob.getYRot(), face, 60));
+        } else if (distance > 0.3 && wanted > 0.02) {
             mob.setYRot(rotlerp(mob.getYRot(), (float)(Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90, 90));
         }
         // Inverse of Entity.getInputVector's rotation; any remainder becomes strafing, so turning never drifts.

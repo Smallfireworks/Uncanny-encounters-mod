@@ -32,19 +32,22 @@ final class Terrain {
     static final double BODY = 1.8, HALF_WIDTH = 0.3, STEP = 0.6, JUMP = 1.25, SAFE_FALL = 3;
     /** Extra planning cost in ticks, on top of the real time, so walking stays preferred when it is close. */
     static final double OPEN_COST = 4, BREAK_COST = 5 + 6;
-    // "Same speed as a player with an iron pickaxe", read as the matching iron tool for each block.
+    // "Same speed as a player with an iron pickaxe", read as the matching iron tool for each block; evolved zombies use diamond.
     private static final List<ItemStack> IRON_TOOLS = List.of(new ItemStack(Items.IRON_PICKAXE), new ItemStack(Items.IRON_AXE),
             new ItemStack(Items.IRON_SHOVEL), new ItemStack(Items.IRON_HOE), new ItemStack(Items.SHEARS), new ItemStack(Items.IRON_SWORD));
+    private static final List<ItemStack> DIAMOND_TOOLS = List.of(new ItemStack(Items.DIAMOND_PICKAXE), new ItemStack(Items.DIAMOND_AXE),
+            new ItemStack(Items.DIAMOND_SHOVEL), new ItemStack(Items.DIAMOND_HOE), new ItemStack(Items.SHEARS), new ItemStack(Items.DIAMOND_SWORD));
     private static final BlockState UNLOADED = Blocks.BARRIER.defaultBlockState();
 
     final ServerLevel level;
-    final boolean mayEdit;
+    final boolean mayEdit, evolved;
     private final Long2ObjectOpenHashMap<BlockState> states = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectOpenHashMap<BlockState> simulated = new Long2ObjectOpenHashMap<>();
     private final BlockPos.MutableBlockPos cursor = new BlockPos.MutableBlockPos();
 
-    Terrain(ServerLevel level, boolean editing) {
+    Terrain(ServerLevel level, boolean editing, boolean evolved) {
         this.level = level;
+        this.evolved = evolved;
         mayEdit = editing && level.getGameRules().get(GameRules.MOB_GRIEFING);
     }
 
@@ -100,6 +103,11 @@ final class Terrain {
         return state(x, y, z).getFluidState().is(FluidTags.WATER) && collision(x, y, z).isEmpty();
     }
 
+    /** Ladders, vines and the like; only evolved zombies plan climbs. */
+    boolean climbable(int x, int y, int z) {
+        return evolved && state(x, y, z).is(BlockTags.CLIMBABLE) && !state(x, y, z).is(Blocks.SCAFFOLDING);
+    }
+
     /** Cells the body must never enter. */
     boolean hazard(int x, int y, int z) {
         BlockState state = state(x, y, z);
@@ -149,7 +157,7 @@ final class Terrain {
                         continue;
                     }
                     int ticks = mayEdit ? breakTicks(state, cursor.set(x, y, z)) : -1;
-                    if (ticks < 0 || lavaAround(x, y, z)) return false;
+                    if (ticks < 0 || nextToLava(this::state, x, y, z)) return false;
                     out.breaks.add(new BlockPos(x, y, z));
                     out.cost += ticks + BREAK_COST;
                 }
@@ -169,9 +177,12 @@ final class Terrain {
                 Math.max(x1, x2) + 0.5 + HALF_WIDTH, top, Math.max(z1, z2) + 0.5 + HALF_WIDTH, out);
     }
 
-    private boolean lavaAround(int x, int y, int z) {
+    interface StateLookup { BlockState at(int x, int y, int z); }
+
+    /** Mining a block that touches lava would let it flow in. */
+    static boolean nextToLava(StateLookup states, int x, int y, int z) {
         for (Direction direction : Direction.values()) {
-            if (state(x + direction.getStepX(), y + direction.getStepY(), z + direction.getStepZ()).getFluidState().is(FluidTags.LAVA)) return true;
+            if (states.at(x + direction.getStepX(), y + direction.getStepY(), z + direction.getStepZ()).getFluidState().is(FluidTags.LAVA)) return true;
         }
         return false;
     }
@@ -195,17 +206,17 @@ final class Terrain {
     }
 
     int breakTicks(BlockState state, BlockPos pos) {
-        float progress = progress(level, state, pos);
+        float progress = progress(level, state, pos, evolved);
         return progress <= 0 ? -1 : Mth.ceil(1 / progress);
     }
 
-    /** Break progress per tick on the ground, using the player formula with the best matching iron tool. */
-    static float progress(BlockGetter level, BlockState state, BlockPos pos) {
+    /** Break progress per tick on the ground, using the player formula with the best matching iron (or diamond) tool. */
+    static float progress(BlockGetter level, BlockState state, BlockPos pos, boolean diamond) {
         float hardness = state.getDestroySpeed(level, pos);
         if (hardness < 0) return 0;
         if (hardness == 0) return 1;
         float best = 0;
-        for (ItemStack tool : IRON_TOOLS) best = Math.max(best, speed(tool, state, hardness));
+        for (ItemStack tool : diamond ? DIAMOND_TOOLS : IRON_TOOLS) best = Math.max(best, speed(tool, state, hardness));
         return best;
     }
 

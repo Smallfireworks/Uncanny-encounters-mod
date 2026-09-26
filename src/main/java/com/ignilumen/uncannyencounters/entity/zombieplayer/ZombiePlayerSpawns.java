@@ -6,22 +6,29 @@ import com.ignilumen.uncannyencounters.entity.ZombiePlayer;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.gamerule.v1.GameRuleBuilder;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.UUIDUtil;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.Difficulty;
@@ -41,11 +48,17 @@ import org.jspecify.annotations.Nullable;
 /**
  * Server-wide record of each player's current zombie. A death only raises a new zombie while the
  * previous one is gone (killed, discarded or past its lifetime); deaths in between are ignored.
+ * It also counts, per owner, how many of their zombies players have killed: past the threshold
+ * every new zombie of that owner is evolved.
  */
 public final class ZombiePlayerSpawns extends SavedData {
     public static final int LIFETIME = 10 * 60 * 20, SPAWN_DELAY = 3 * 20, SEARCH_RADIUS = 8;
     public static final GameRule<Boolean> SPAWNING = GameRuleBuilder.forBoolean(true)
             .category(GameRuleCategory.SPAWNING).buildAndRegister(UncannyEncounters.id("zombie_player_spawning"));
+    public static final GameRule<Boolean> EVOLUTION = GameRuleBuilder.forBoolean(true)
+            .category(GameRuleCategory.MOBS).buildAndRegister(UncannyEncounters.id("zombie_player_evolution"));
+    public static final GameRule<Integer> EVOLUTION_DEFEATS = GameRuleBuilder.forInteger(3).minValue(1)
+            .category(GameRuleCategory.MOBS).buildAndRegister(UncannyEncounters.id("zombie_player_evolution_defeats"));
 
     private record Active(UUID zombie, long expireAt) {
         static final Codec<Active> CODEC = RecordCodecBuilder.create(i -> i.group(
@@ -68,21 +81,24 @@ public final class ZombiePlayerSpawns extends SavedData {
 
     private static final Codec<ZombiePlayerSpawns> CODEC = RecordCodecBuilder.create(i -> i.group(
             Codec.unboundedMap(UUIDUtil.STRING_CODEC, Active.CODEC).fieldOf("active").forGetter(s -> s.active),
-            Codec.unboundedMap(UUIDUtil.STRING_CODEC, Pending.CODEC).fieldOf("pending").forGetter(s -> s.pending)
+            Codec.unboundedMap(UUIDUtil.STRING_CODEC, Pending.CODEC).fieldOf("pending").forGetter(s -> s.pending),
+            Codec.unboundedMap(UUIDUtil.STRING_CODEC, Codec.INT).optionalFieldOf("defeats", Map.of()).forGetter(s -> s.defeats)
     ).apply(i, ZombiePlayerSpawns::new));
     public static final SavedDataType<ZombiePlayerSpawns> TYPE = new SavedDataType<>(
             UncannyEncounters.id("zombie_players"), ZombiePlayerSpawns::new, CODEC, null);
 
     private final Map<UUID, Active> active;
     private final Map<UUID, Pending> pending;
+    private final Map<UUID, Integer> defeats;
 
     public ZombiePlayerSpawns() {
-        this(Map.of(), Map.of());
+        this(Map.of(), Map.of(), Map.of());
     }
 
-    private ZombiePlayerSpawns(Map<UUID, Active> saved, Map<UUID, Pending> waiting) {
+    private ZombiePlayerSpawns(Map<UUID, Active> saved, Map<UUID, Pending> waiting, Map<UUID, Integer> defeated) {
         active = new HashMap<>(saved);
         pending = new HashMap<>(waiting);
+        defeats = new HashMap<>(defeated);
     }
 
     public static ZombiePlayerSpawns get(MinecraftServer server) {
@@ -98,6 +114,47 @@ public final class ZombiePlayerSpawns extends SavedData {
             TemporaryEdits edits = level.getDataStorage().get(TemporaryEdits.TYPE);
             if (edits != null) edits.tick(level);
         });
+        CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> dispatcher.register(
+                Commands.literal("zombieplayer").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+                        .then(Commands.literal("defeats").then(Commands.argument("targets", GameProfileArgument.gameProfile())
+                                .executes(c -> query(c.getSource(), GameProfileArgument.getGameProfiles(c, "targets")))))
+                        .then(Commands.literal("reset").then(Commands.argument("targets", GameProfileArgument.gameProfile())
+                                .executes(c -> reset(c.getSource(), GameProfileArgument.getGameProfiles(c, "targets")))))));
+    }
+
+    private static int query(CommandSourceStack source, Collection<NameAndId> targets) {
+        ZombiePlayerSpawns spawns = get(source.getServer());
+        int threshold = source.getLevel().getGameRules().get(EVOLUTION_DEFEATS);
+        for (NameAndId target : targets) {
+            int count = spawns.defeats(target.id());
+            source.sendSuccess(() -> Component.translatable("commands.uncannyencounters.zombieplayer.defeats",
+                    target.name(), count, threshold), false);
+        }
+        return targets.size();
+    }
+
+    private static int reset(CommandSourceStack source, Collection<NameAndId> targets) {
+        ZombiePlayerSpawns spawns = get(source.getServer());
+        for (NameAndId target : targets) {
+            if (spawns.defeats.remove(target.id()) != null) spawns.setDirty();
+            source.sendSuccess(() -> Component.translatable("commands.uncannyencounters.zombieplayer.reset", target.name()), true);
+        }
+        return targets.size();
+    }
+
+    public int defeats(UUID owner) {
+        return defeats.getOrDefault(owner, 0);
+    }
+
+    /** Whether this owner's next zombie is evolved. */
+    public boolean evolves(ServerLevel level, UUID owner) {
+        return level.getGameRules().get(EVOLUTION) && defeats(owner) >= level.getGameRules().get(EVOLUTION_DEFEATS);
+    }
+
+    /** A player killed one of this owner's death-spawned zombies. */
+    public void recordDefeat(UUID owner) {
+        defeats.merge(owner, 1, Integer::sum);
+        setDirty();
     }
 
     private void onDeath(ServerPlayer player) {
@@ -134,7 +191,7 @@ public final class ZombiePlayerSpawns extends SavedData {
         if (zombie == null) return;
         zombie.snapTo(Vec3.atBottomCenterOf(feet), level.getRandom().nextFloat() * 360, 0);
         long expireAt = level.getGameTime() + LIFETIME;
-        zombie.bind(owner, death.profile, death.skinParts, death.leftHanded, deathPos, expireAt, true);
+        zombie.bind(owner, death.profile, death.skinParts, death.leftHanded, deathPos, expireAt, true, evolves(level, owner));
         zombie.finalizeSpawn(level, level.getCurrentDifficultyAt(feet), EntitySpawnReason.EVENT, null);
         if (level.addFreshEntity(zombie)) {
             active.put(owner, new Active(zombie.getUUID(), expireAt));

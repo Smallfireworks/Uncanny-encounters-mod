@@ -20,19 +20,15 @@ public final class RoutePlanner {
     /** Ticks per block when sprinting like a player (5.612 blocks per second). */
     static final double WALK = 1 / 0.2806;
     private static final double SWIM = WALK * 2.5, JUMP_COST = 2, FALL_COST = 1.5, PLACE_COST = 6 + 6,
-            PILLAR_COST = 12, AVOID_COST = 60, HEURISTIC = 1.2, DIAGONAL = Math.sqrt(2);
-    private static final int RANGE = 48, MAX_NODES = 6000, MAX_FALL_SCAN = 20;
+            PILLAR_COST = 12, AVOID_COST = 60, HEURISTIC = 1.2, DIAGONAL = Math.sqrt(2),
+            CLIMB = PILLAR_COST + PLACE_COST - WALK, GAP_RISK = 4, CLIMB_COST = 1 / 0.2;
+    private static final int MAX_FALL_SCAN = 20;
 
     /** Arrival area: horizontal radius around {@code center} and a vertical tolerance in cells. */
     public record Goal(BlockPos center, double radius, int vertical) {
         boolean reached(int x, int y, int z) {
             double dx = x - center.getX(), dz = z - center.getZ();
             return dx * dx + dz * dz <= radius * radius && Math.abs(y - center.getY()) <= vertical;
-        }
-
-        double distance(int x, int y, int z) {
-            double dx = x - center.getX(), dy = y - center.getY(), dz = z - center.getZ();
-            return Math.sqrt(dx * dx + dy * dy + dz * dz);
         }
 
         boolean sameAs(Goal other) {
@@ -67,6 +63,7 @@ public final class RoutePlanner {
     private final Terrain terrain;
     private final Goal goal;
     private final LongSet avoid;
+    private final int range, maxNodes;
     private final Node start;
     private final Long2ObjectOpenHashMap<Node> nodes = new Long2ObjectOpenHashMap<>();
     private final PriorityQueue<Open> open = new PriorityQueue<>(Comparator.comparingDouble(Open::f));
@@ -79,6 +76,8 @@ public final class RoutePlanner {
         this.terrain = terrain;
         this.goal = goal;
         this.avoid = avoid;
+        range = terrain.evolved ? 64 : 48;
+        maxNodes = terrain.evolved ? 12000 : 6000;
         start = new Node(from.getX(), from.getY(), from.getZ());
         start.floor = floor;
         start.swim = swimming;
@@ -97,7 +96,7 @@ public final class RoutePlanner {
     boolean run(int budget) {
         while (result == null && budget-- > 0) {
             Open entry = open.poll();
-            if (entry == null || expanded >= MAX_NODES) {
+            if (entry == null || expanded >= maxNodes) {
                 // No full route: take the explored cell closest to the goal if it is a real improvement.
                 result = best != start && best.h < start.h - WALK * HEURISTIC ? build(best) : List.of();
                 break;
@@ -141,16 +140,18 @@ public final class RoutePlanner {
             walk(node, dx, dz);
             ascend(node, dx, dz);
             descend(node, dx, dz);
+            gapJump(node, dx, dz);
         }
         for (int dx = -1; dx <= 1; dx += 2) {
             for (int dz = -1; dz <= 1; dz += 2) diagonal(node, dx, dz);
         }
         pillar(node);
         digDown(node);
+        climb(node);
         swimVertically(node);
     }
 
-    /** Same-level move; bridges over a gap by building under the next cell. */
+    /** Same-level move; bridges over a gap by building under the next cell, or steps onto a ladder. */
     private void walk(Node node, int dx, int dz) {
         int x = node.x + dx, y = node.y, z = node.z + dz;
         if (!inRange(x, z) || terrain.hazard(x, y, z) || terrain.hazard(x, y + 1, z)) return;
@@ -158,7 +159,9 @@ public final class RoutePlanner {
         boolean swim = Double.isNaN(floor) && terrain.water(x, y, z);
         BlockPos place = null;
         double cost = node.swim || swim ? SWIM : WALK;
-        if (Double.isNaN(floor) && !swim) {
+        if (Double.isNaN(floor) && !swim && terrain.climbable(x, y, z)) {
+            floor = y; // held by the ladder itself
+        } else if (Double.isNaN(floor) && !swim) {
             if (node.swim || !terrain.placeable(x, y - 1, z)) return;
             place = new BlockPos(x, y - 1, z);
             floor = y;
@@ -255,7 +258,7 @@ public final class RoutePlanner {
 
     /** Mine the block underfoot and drop onto the one below it. */
     private void digDown(Node node) {
-        if (node.swim || !terrain.mayEdit || Math.abs(node.floor - node.y) > 1.0E-6) return;
+        if (node.swim || !terrain.mayEdit || Math.abs(node.floor - node.y) > 1.0E-6 || terrain.climbable(node.x, node.y, node.z)) return;
         int y = node.y - 1;
         double floor = terrain.floorBelow(node.x, y, node.z);
         if (Double.isNaN(floor) || terrain.hazard(node.x, y, node.z)) return;
@@ -263,6 +266,53 @@ public final class RoutePlanner {
         if (!terrain.clearColumn(node.x, node.z, floor + 0.01, node.y + Terrain.BODY, clearing) || clearing.breaks.isEmpty()) return;
         consider(node, node.x, y, node.z, floor, false, FALL_COST + clearing.cost + terrain.floorPenalty(node.x, y, node.z),
                 new Step(Step.Kind.DIG_DOWN, node.pos(), new BlockPos(node.x, y, node.z), floor, clearing.opens, clearing.breaks, null));
+    }
+
+    /**
+     * Evolved: a sprint jump over one to three open columns. The landing may be a block higher across a
+     * one-block gap, half a block across two, never higher across three, and up to a block lower.
+     * Cheaper than bridging, so it is preferred where the landing is sound.
+     */
+    private void gapJump(Node node, int dx, int dz) {
+        if (!terrain.evolved || node.swim || terrain.climbable(node.x, node.y, node.z)) return;
+        double from = node.floor;
+        for (int gap = 1; gap <= 3; gap++) {
+            int gx = node.x + dx * gap, gz = node.z + dz * gap;
+            // Every column jumped over must be open at feet level, with room for the arc.
+            if (!inRange(gx, gz) || !Double.isNaN(terrain.floor(gx, node.y, gz)) || terrain.water(gx, node.y, gz)
+                    || terrain.hazard(gx, node.y, gz) || terrain.hazard(gx, node.y + 1, gz)) return;
+            int lx = gx + dx, lz = gz + dz;
+            if (!inRange(lx, lz)) return;
+            double rise = gap == 1 ? 1 : gap == 2 ? 0.5 : 0;
+            for (int ly = node.y + 1; ly >= node.y - 1; ly--) {
+                double floor = terrain.floor(lx, ly, lz);
+                if (Double.isNaN(floor) || floor > from + rise + 0.01 || floor < from - 1.01 || terrain.hazard(lx, ly, lz)
+                        || terrain.hazard(lx, ly + 1, lz)) continue;
+                double top = Math.max(from, floor);
+                Terrain.Clearing clearing = new Terrain.Clearing();
+                if (!terrain.clearSweep(node.x, node.z, lx, lz, top + 0.01, top + Terrain.BODY + 1.0, clearing)
+                        || !terrain.clearColumn(lx, lz, floor + 0.01, floor + Terrain.BODY, clearing)
+                        || !clearing.breaks.isEmpty() || !clearing.opens.isEmpty()) continue;
+                consider(node, lx, ly, lz, floor, false, WALK * (gap + 1) + JUMP_COST + GAP_RISK + terrain.floorPenalty(lx, ly, lz),
+                        new Step(Step.Kind.GAP_JUMP, node.pos(), new BlockPos(lx, ly, lz), floor, List.of(), List.of(), null));
+                break;
+            }
+        }
+    }
+
+    /** Evolved: one block up or down a ladder or vine in the current column. */
+    private void climb(Node node) {
+        if (!terrain.evolved || node.swim) return;
+        for (int dy = -1; dy <= 1; dy += 2) {
+            int y = node.y + dy;
+            // Going up needs the climbable around the body now; going down, in the cell below.
+            if (!terrain.climbable(node.x, dy > 0 ? node.y : y, node.z) || terrain.hazard(node.x, y, node.z)) continue;
+            Terrain.Clearing clearing = new Terrain.Clearing();
+            if (!terrain.clearColumn(node.x, node.z, Math.min(node.y, y) + 0.01, Math.max(node.y, y) + Terrain.BODY, clearing)
+                    || !clearing.breaks.isEmpty() || !clearing.opens.isEmpty()) continue;
+            consider(node, node.x, y, node.z, y, false, CLIMB_COST,
+                    new Step(Step.Kind.CLIMB, node.pos(), new BlockPos(node.x, y, node.z), y, List.of(), List.of(), null));
+        }
     }
 
     private void swimVertically(Node node) {
@@ -277,15 +327,23 @@ public final class RoutePlanner {
     }
 
     private boolean inRange(int x, int z) {
-        return Math.abs(x - start.x) <= RANGE && Math.abs(z - start.z) <= RANGE && terrain.loaded(x, z);
+        return Math.abs(x - start.x) <= range && Math.abs(z - start.z) <= range && terrain.loaded(x, z);
     }
 
+    /**
+     * Distance in walking ticks, plus pillaring for any rise steeper than one block per block walked.
+     * Without that term a target up in the air looks nearly free, and the search floods the whole
+     * ground before it ever tries building up.
+     */
     private double heuristic(int x, int y, int z) {
-        return goal.distance(x, y, z) * WALK * HEURISTIC;
+        double dx = x - goal.center().getX(), dy = goal.center().getY() - y, dz = z - goal.center().getZ();
+        double horizontal = Math.sqrt(dx * dx + dz * dz);
+        double climb = Math.max(0, dy - horizontal);
+        return (Math.sqrt(horizontal * horizontal + dy * dy) * WALK + climb * CLIMB) * HEURISTIC;
     }
 
     private void consider(Node from, int x, int y, int z, double floor, boolean swim, double cost, Step step) {
-        if (Math.abs(y - start.y) > RANGE || terrain.level.isOutsideBuildHeight(y + 1)
+        if (Math.abs(y - start.y) > range || terrain.level.isOutsideBuildHeight(y + 1)
                 || terrain.level.isOutsideBuildHeight(y - 1)) return;
         long key = BlockPos.asLong(x, y, z);
         if (avoid.contains(key)) cost += AVOID_COST;

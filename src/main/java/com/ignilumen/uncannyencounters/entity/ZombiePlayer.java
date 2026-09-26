@@ -2,9 +2,11 @@ package com.ignilumen.uncannyencounters.entity;
 
 import com.ignilumen.uncannyencounters.entity.zombieplayer.*;
 import java.util.UUID;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.syncher.*;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -40,7 +42,7 @@ public final class ZombiePlayer extends Monster {
     private @Nullable UUID owner;
     private BlockPos home = BlockPos.ZERO;
     private long expireAt;
-    private boolean tracked, initialized, edgeGuard, fleshRegeneration;
+    private boolean tracked, initialized, edgeGuard, fleshRegeneration, evolved;
     private int eatTicks, eatCooldown;
 
     public ZombiePlayer(EntityType<? extends ZombiePlayer> type, Level level) {
@@ -69,6 +71,8 @@ public final class ZombiePlayer extends Monster {
     public ResolvableProfile profile() { return entityData.get(PROFILE); }
     public byte skinParts() { return entityData.get(SKIN_PARTS); }
     public BlockPos home() { return home; }
+    /** Players killed enough of the owner's zombies: fights like a PvP veteran and digs with diamond speed. */
+    public boolean evolved() { return evolved; }
     public PreciseMoveControl steering() { return steering; }
     public void setEdgeGuard(boolean value) { edgeGuard = value; }
     public void setCrouching(boolean value) { setShiftKeyDown(value); }
@@ -85,15 +89,18 @@ public final class ZombiePlayer extends Monster {
     }
 
     public void bind(UUID owner, ResolvableProfile profile, byte parts, boolean leftHanded,
-                     BlockPos home, long expireAt, boolean tracked) {
+                     BlockPos home, long expireAt, boolean tracked, boolean evolved) {
         this.owner = owner;
         this.home = home.immutable();
         this.expireAt = expireAt;
         this.tracked = tracked;
+        this.evolved = evolved;
+        if (evolved) setCanPickUpLoot(true);
         entityData.set(PROFILE, profile);
         entityData.set(SKIN_PARTS, parts);
         setLeftHanded(leftHanded);
-        setCustomName(Component.translatable("entity.uncannyencounters.zombie_player.named", profile.partialProfile().name()));
+        MutableComponent name = Component.translatable("entity.uncannyencounters.zombie_player.named", profile.partialProfile().name());
+        setCustomName(evolved ? name.withStyle(ChatFormatting.DARK_RED) : name);
         setCustomNameVisible(true);
     }
 
@@ -113,7 +120,7 @@ public final class ZombiePlayer extends Monster {
             home = blockPosition();
             expireAt = level.getGameTime() + ZombiePlayerSpawns.LIFETIME;
         }
-        setCanPickUpLoot(random.nextFloat() < level.getDifficulty().getId() * 0.25F);
+        setCanPickUpLoot(evolved || random.nextFloat() < level.getDifficulty().getId() * 0.25F);
         getAttribute(Attributes.ARMOR).setBaseValue(10 + random.nextInt(11));
     }
 
@@ -141,7 +148,7 @@ public final class ZombiePlayer extends Monster {
             startUsingItem(InteractionHand.OFF_HAND);
             eatTicks = 32;
             eatCooldown = 300;
-            tactics.stop(level);
+            tactics.beginMeal(level);
             return;
         }
         tactics.tick(level);
@@ -201,9 +208,15 @@ public final class ZombiePlayer extends Monster {
     }
 
     @Override public void die(DamageSource source) {
+        boolean firstDeath = !isRemoved() && !dead;
         super.die(source);
-        if (isDeadOrDying() && tracked && owner != null && level() instanceof ServerLevel level)
-            ZombiePlayerSpawns.get(level.getServer()).release(owner, getUUID());
+        if (firstDeath && dead && tracked && owner != null && level() instanceof ServerLevel level) {
+            ZombiePlayerSpawns spawns = ZombiePlayerSpawns.get(level.getServer());
+            spawns.release(owner, getUUID());
+            // Vanilla kill credit: a direct hit, or a player's hit shortly before lava, a fall or the void.
+            if (source.getEntity() instanceof Player || getLastHurtByPlayerMemoryTime() > 0 && getLastHurtByPlayer() != null)
+                spawns.recordDefeat(owner);
+        }
     }
 
     @Override public void remove(RemovalReason reason) {
@@ -241,6 +254,7 @@ public final class ZombiePlayer extends Monster {
         output.putLong("ExpireAt", expireAt);
         output.putBoolean("Tracked", tracked);
         output.putBoolean("Initialized", initialized);
+        output.putBoolean("Evolved", evolved);
         output.putInt("EatCooldown", eatCooldown);
     }
 
@@ -253,6 +267,7 @@ public final class ZombiePlayer extends Monster {
         expireAt = input.getLongOr("ExpireAt", 0);
         tracked = input.getBooleanOr("Tracked", false);
         initialized = input.getBooleanOr("Initialized", false);
+        evolved = input.getBooleanOr("Evolved", false);
         eatCooldown = input.getIntOr("EatCooldown", 0);
         if (getOffhandItem().is(Items.ROTTEN_FLESH)) setItemSlot(EquipmentSlot.OFFHAND, ItemStack.EMPTY);
     }
