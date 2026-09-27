@@ -46,9 +46,10 @@ public final class PreciseMoveControl extends MoveControl<ZombiePlayer> {
         double distance = Math.sqrt(dx * dx + dz * dz);
         if (mob.isInWater() || mob.isInLava()) {
             // Fluid drag is different; swimming only needs a heading and full input.
-            if (distance > 0.1) mob.setYRot(rotlerp(mob.getYRot(), (float)(Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90, 90));
-            mob.setXxa(0);
-            mob.setZza(distance > 0.2 ? 1 : 0);
+            if (distance > 0.1 && !mob.evolved()) mob.setYRot(rotlerp(mob.getYRot(), (float)(Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90, 90));
+            double angle = distance > 0.2 ? Math.atan2(dz, dx) - Math.toRadians(mob.getYRot() + 90) : 0;
+            mob.setXxa(mob.evolved() && distance > 0.2 ? (float)-Math.sin(angle) : 0);
+            mob.setZza(distance > 0.2 ? mob.evolved() ? (float)Math.cos(angle) : 1 : 0);
             return;
         }
         // Mirror LivingEntity.travelInAir: accelerate by the input, then keep friction * 0.91 of the velocity.
@@ -67,9 +68,9 @@ public final class PreciseMoveControl extends MoveControl<ZombiePlayer> {
             ax *= limit / needed;
             az *= limit / needed;
         }
-        if (!Float.isNaN(face)) {
+        if (!mob.evolved() && !Float.isNaN(face)) {
             mob.setYRot(rotlerp(mob.getYRot(), face, 60));
-        } else if (distance > 0.3 && wanted > 0.02) {
+        } else if (!mob.evolved() && distance > 0.3 && wanted > 0.02) {
             mob.setYRot(rotlerp(mob.getYRot(), (float)(Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90, 90));
         }
         // Inverse of Entity.getInputVector's rotation; any remainder becomes strafing, so turning never drifts.

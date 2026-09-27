@@ -13,13 +13,10 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
-import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.BowItem;
 import net.minecraft.world.item.CrossbowItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
-import net.minecraft.world.level.gamerules.GameRules;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -28,13 +25,13 @@ import org.jspecify.annotations.Nullable;
  * extra knockback and are followed by a W-tap (releasing sprint for a moment) so the next hit gets it
  * again; close trades are won with falling crits instead. While the attack recharges it keeps just
  * outside the opponent's reach and circles; it sidesteps projectiles, flanks so that knockback carries
- * the target into lava or off a drop, and walls in the target's retreat to keep a combo going.
+ * the target into lava or off a drop. Incoming rushes can be interrupted by one aimed obstacle.
  */
 final class Duelist {
     /** Player entity reach, from the eyes to the target's hitbox. */
     static final double REACH = 3.0;
     private static final double SPACING = 3.3, ENGAGE = 7, FLANK = 2.6;
-    private static final int WTAP_TICKS = 3, WALL_COOLDOWN = 80, HAZARD_SCAN = 3, CLIFF = 4;
+    private static final int WTAP_TICKS = 3, HAZARD_SCAN = 3, CLIFF = 4;
     private static final AttributeModifier CRIT = new AttributeModifier(UncannyEncounters.id("zombie_player_crit"),
             0.5, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL);
     private static final AttributeModifier SPRINT_HIT = new AttributeModifier(UncannyEncounters.id("zombie_player_sprint_hit"),
@@ -42,14 +39,19 @@ final class Duelist {
 
     private final ZombiePlayer mob;
     private final PreciseMoveControl steering;
-    private int wtap, strafeTicks, strafeSide = 1, wallCooldown, dodgeTicks, hazardTicks;
+    private final Interception interception;
+    private final ProjectileAwareness projectiles;
+    private int wtap, strafeTicks, strafeSide = 1, hazardTicks;
     private boolean critJump;
     private Vec3 dodge = Vec3.ZERO;
     private @Nullable Vec3 hazard;
+    private final ArcherAwareness archers = new ArcherAwareness();
 
     Duelist(ZombiePlayer mob) {
         this.mob = mob;
         steering = mob.steering();
+        interception = new Interception(mob);
+        projectiles = new ProjectileAwareness(mob);
     }
 
     static boolean inReach(ZombiePlayer mob, LivingEntity target) {
@@ -59,10 +61,25 @@ final class Duelist {
     /** Close, visible and on roughly the same level: fought directly instead of following a route. */
     boolean engages(LivingEntity target, boolean visible) {
         return visible && mob.distanceToSqr(target) <= ENGAGE * ENGAGE && Math.abs(target.getY() - mob.getY()) < 2.5
-                && !mob.isInWater();
+                && !mob.isInWater() && mob.footing().canApproach(target.position());
+    }
+
+    void observe(ServerLevel level) { projectiles.observe(level); }
+
+    void watchArcher(LivingEntity target, boolean visible) {
+        if (!visible || !aiming(target)) return;
+        Vec3 toward = mob.getBoundingBox().getCenter().subtract(target.getEyePosition()).normalize();
+        if (target.getLookAngle().dot(toward) < 0.8) return;
+        long now = mob.level().getGameTime();
+        archers.notice(target.getUUID(), now, 3 + mob.getRandom().nextInt(3));
+    }
+
+    boolean waryOfArcher(LivingEntity target) {
+        return archers.wary(target.getUUID(), mob.level().getGameTime());
     }
 
     void reset() {
+        interception.cancel();
         wtap = 0;
         critJump = false;
         hazard = null;
@@ -70,20 +87,21 @@ final class Duelist {
     }
 
     /** One tick of melee. Returns the attack cooldown after this tick. */
-    int melee(ServerLevel level, LivingEntity target, int cooldown) {
-        if (wallCooldown > 0) wallCooldown--;
+    int melee(ServerLevel level, LivingEntity target, int cooldown, Vec3 observedVelocity) {
+        projectiles.observe(level);
+        boolean building = interception.tick(level, target, observedVelocity, cooldown);
         if (--hazardTicks <= 0) {
             hazardTicks = 10;
             hazard = hazardDirection(level, target);
         }
         float face = yawTo(target.position());
-        mob.getLookControl().setLookAt(target, 60, 60);
+        if (!building) mob.getLookControl().setLookAt(target, 45, 45);
         Vec3 offset = flat(target.position().subtract(mob.position()));
         double distance = offset.length();
         boolean airborne = !mob.onGround() && !mob.isInWater() && !mob.onClimbable();
         if (!airborne) critJump = false;
 
-        if (cooldown == 0 && inReach(mob, target) && mob.getSensing().hasLineOfSight(target)) {
+        if (!building && cooldown == 0 && inReach(mob, target) && mob.actions().canAttack(target, REACH)) {
             boolean falling = airborne && mob.getDeltaMovement().y < 0;
             // Mid crit jump: hold the swing until the fall, unless the target is about to slip out of reach.
             boolean holdForCrit = critJump && airborne && !falling && distance < REACH - 0.6;
@@ -92,7 +110,6 @@ final class Duelist {
                 hit(level, target, falling, sprintHit);
                 if (sprintHit) {
                     wtap = WTAP_TICKS;
-                    wallOff(level, target);
                 }
                 cooldown = cooldown(mob);
             }
@@ -100,6 +117,14 @@ final class Duelist {
 
         if (dodgeProjectile(level)) {
             move(mob.position().add(dodge.scale(2)), true, face);
+        } else if (archers.ready(target.getUUID(), level.getGameTime()) && distance > REACH + 1) {
+            if (++strafeTicks > 8 + mob.getRandom().nextInt(9) || mob.horizontalCollision) {
+                strafeTicks = 0;
+                strafeSide = -strafeSide;
+            }
+            Vec3 heading = offset.normalize();
+            Vec3 side = new Vec3(-heading.z, 0, heading.x).scale(strafeSide);
+            move(mob.position().add(heading.scale(1.5)).add(side.scale(2)), true, face);
         } else if (wtap > 0) {
             // W-tap: let go of forward for a moment so sprint (and its knockback) comes back on the next hit.
             wtap--;
@@ -151,6 +176,7 @@ final class Duelist {
 
     /** Bow in hand: keep a firing distance, backing off from a rusher and strafing to spoil its aim. */
     void kite(LivingEntity target) {
+        projectiles.observe((ServerLevel)mob.level());
         if (++strafeTicks > 30 + mob.getRandom().nextInt(30) || mob.horizontalCollision) {
             strafeTicks = 0;
             strafeSide = -strafeSide;
@@ -170,11 +196,11 @@ final class Duelist {
         mob.setSprinting(sprint);
         mob.setCrouching(false);
         mob.setEdgeGuard(mob.onGround()); // fight near a drop without walking off it
-        steering.steer(point, 1.0, false, face);
+        steering.steer(mob.footing().constrain(point), 1.0, false, face);
     }
 
     private void jumpForCrit() {
-        if (!mob.onGround()) return;
+        if (!mob.onGround() || !mob.footing().roomToJump()) return;
         mob.setSprinting(false); // a sprinting swing is never a crit
         mob.getJumpControl().jump();
         critJump = true;
@@ -190,7 +216,6 @@ final class Duelist {
         var knockback = mob.getAttribute(Attributes.ATTACK_KNOCKBACK);
         if (crit && damage != null) damage.addTransientModifier(CRIT);
         if (sprint && knockback != null) knockback.addTransientModifier(SPRINT_HIT);
-        mob.setYRot(yawTo(target.position())); // knockback follows the attacker's facing
         mob.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
         boolean hurt;
         try {
@@ -213,53 +238,17 @@ final class Duelist {
         return Math.max(5, (int)Math.ceil(20 / Math.max(0.1, mob.getAttributeValue(Attributes.ATTACK_SPEED))));
     }
 
-    /**
-     * After a sprint hit, build a two-high wall right behind the target so the knockback cannot carry
-     * it out of reach. Never done when the push is meant to send it into a hazard instead.
-     */
-    private void wallOff(ServerLevel level, LivingEntity target) {
-        if (wallCooldown > 0 || hazard != null || !target.onGround() || !level.getGameRules().get(GameRules.MOB_GRIEFING)) return;
-        Vec3 push = flat(target.position().subtract(mob.position()));
-        if (push.lengthSqr() < 1.0E-4) return;
-        Direction away = Direction.getApproximateNearest(push.x, 0, push.z);
-        BlockPos feet = target.blockPosition().relative(away);
-        TemporaryEdits edits = TemporaryEdits.get(level);
-        if (level.getBlockState(feet.below()).getCollisionShape(level, feet.below()).isEmpty()) return; // nothing to build against
-        if (!placeable(level, feet) || !placeable(level, feet.above())) return;
-        if (!edits.placeBlock(level, feet, mob)) return;
-        edits.placeBlock(level, feet.above(), mob);
-        wallCooldown = WALL_COOLDOWN;
-    }
-
-    private boolean placeable(ServerLevel level, BlockPos pos) {
-        if (!level.getBlockState(pos).canBeReplaced() || mob.getEyePosition().distanceToSqr(Vec3.atCenterOf(pos)) > 4.5 * 4.5) return false;
-        return level.getEntitiesOfClass(LivingEntity.class, new AABB(pos)).isEmpty();
-    }
-
-    /** Sidestep a projectile about to hit; sets {@link #dodge} to the escape direction. */
     private boolean dodgeProjectile(ServerLevel level) {
-        if (dodgeTicks > 0) {
-            dodgeTicks--;
-            return true;
-        }
-        Vec3 body = mob.getBoundingBox().getCenter();
-        for (Projectile projectile : level.getEntitiesOfClass(Projectile.class, mob.getBoundingBox().inflate(14),
-                p -> p.getOwner() != mob && p.getDeltaMovement().lengthSqr() > 0.25)) {
-            Vec3 velocity = projectile.getDeltaMovement();
-            Vec3 relative = body.subtract(projectile.position());
-            double t = relative.dot(velocity) / velocity.lengthSqr();
-            if (t <= 0 || t > 15) continue;
-            Vec3 closest = projectile.position().add(velocity.scale(t));
-            if (closest.distanceToSqr(body) > 1.3 * 1.3) continue;
-            Vec3 across = flat(new Vec3(-velocity.z, 0, velocity.x));
-            if (across.lengthSqr() < 1.0E-4) across = new Vec3(1, 0, 0);
-            across = across.normalize();
-            double side = body.subtract(closest).dot(across);
-            dodge = across.scale(side == 0 ? strafeSide : Math.signum(side));
-            dodgeTicks = 6;
-            return true;
-        }
-        return false;
+        Vec3 direction = projectiles.dodge(level, strafeSide);
+        if (direction == null) return false;
+        if (mob.footing().connected(mob.position().add(direction.scale(1.5)))) dodge = direction;
+        else if (mob.footing().connected(mob.position().subtract(direction.scale(1.5)))) dodge = direction.scale(-1);
+        else return false;
+        return true;
+    }
+
+    @Nullable Vec3 projectileEscape(ServerLevel level) {
+        return dodgeProjectile(level) ? mob.position().add(dodge.scale(1.5)) : null;
     }
 
     /** An opponent drawing a bow or holding a loaded crossbow: approach in a zigzag. */

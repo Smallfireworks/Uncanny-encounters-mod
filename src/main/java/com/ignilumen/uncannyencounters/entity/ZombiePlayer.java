@@ -38,15 +38,20 @@ public final class ZombiePlayer extends Monster {
     private static final EntityDataAccessor<ResolvableProfile> PROFILE = SynchedEntityData.defineId(ZombiePlayer.class, EntityDataSerializers.RESOLVABLE_PROFILE);
     private static final EntityDataAccessor<Byte> SKIN_PARTS = SynchedEntityData.defineId(ZombiePlayer.class, EntityDataSerializers.BYTE);
     private final PreciseMoveControl steering;
+    private final PlayerActions actions;
+    private final CombatFooting footing;
     private final ZombiePlayerBrain tactics;
     private @Nullable UUID owner;
     private BlockPos home = BlockPos.ZERO;
     private long expireAt;
-    private boolean tracked, initialized, edgeGuard, fleshRegeneration, evolved;
+    private boolean tracked, initialized, edgeGuard, fleshRegeneration, evolved, preparingMeal;
     private int eatTicks, eatCooldown;
 
     public ZombiePlayer(EntityType<? extends ZombiePlayer> type, Level level) {
         super(type, level);
+        actions = new PlayerActions(this);
+        footing = new CombatFooting(this);
+        lookControl = actions.lookControl();
         moveControl = steering = new PreciseMoveControl(this);
         tactics = new ZombiePlayerBrain(this);
         setPersistenceRequired();
@@ -74,6 +79,8 @@ public final class ZombiePlayer extends Monster {
     /** Players killed enough of the owner's zombies: fights like a PvP veteran and digs with diamond speed. */
     public boolean evolved() { return evolved; }
     public PreciseMoveControl steering() { return steering; }
+    public PlayerActions actions() { return actions; }
+    public CombatFooting footing() { return footing; }
     public void setEdgeGuard(boolean value) { edgeGuard = value; }
     public void setCrouching(boolean value) { setShiftKeyDown(value); }
     @Override public boolean isCrouching() { return isShiftKeyDown(); }
@@ -137,21 +144,42 @@ public final class ZombiePlayer extends Monster {
     }
 
     @Override protected void customServerAiStep(ServerLevel level) {
+        if (evolved) tactics.observeDanger(level);
+        if (preparingMeal) {
+            if (tactics.prepareMeal(level)) {
+                preparingMeal = false;
+                startMeal();
+            }
+            return;
+        }
         if (eatTicks > 0) {
             tactics.evade(level);
             if (--eatTicks == 0) finishMeal();
             return;
         }
-        if (getHealth() <= 10 && eatCooldown == 0) {
+        if (getHealth() <= 10 && eatCooldown == 0 && tactics.canStartMeal()) {
             stopUsingItem();
-            setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.ROTTEN_FLESH));
-            startUsingItem(InteractionHand.OFF_HAND);
-            eatTicks = 32;
-            eatCooldown = 300;
             tactics.beginMeal(level);
+            if (evolved && !tactics.prepareMeal(level)) preparingMeal = true;
+            else startMeal();
             return;
         }
         tactics.tick(level);
+    }
+
+    private void startMeal() {
+        setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.ROTTEN_FLESH));
+        startUsingItem(InteractionHand.OFF_HAND);
+        eatTicks = 32;
+        eatCooldown = 300;
+    }
+
+    @Override public boolean doHurtTarget(ServerLevel level, Entity target) {
+        if (evolved) {
+            if (!actions.canAttack(target, 3)) return false;
+            actions.attacked();
+        }
+        return super.doHurtTarget(level, target);
     }
 
     private void finishMeal() {

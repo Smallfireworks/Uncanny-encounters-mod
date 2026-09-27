@@ -281,6 +281,7 @@ public final class RoutePlanner {
             // Every column jumped over must be open at feet level, with room for the arc.
             if (!inRange(gx, gz) || !Double.isNaN(terrain.floor(gx, node.y, gz)) || terrain.water(gx, node.y, gz)
                     || terrain.hazard(gx, node.y, gz) || terrain.hazard(gx, node.y + 1, gz)) return;
+            if (!terrain.recoverableGap(gx, node.y, gz)) return;
             int lx = gx + dx, lz = gz + dz;
             if (!inRange(lx, lz)) return;
             double rise = gap == 1 ? 1 : gap == 2 ? 0.5 : 0;

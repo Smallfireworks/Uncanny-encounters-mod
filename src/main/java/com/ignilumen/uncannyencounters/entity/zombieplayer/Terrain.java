@@ -115,6 +115,16 @@ final class Terrain {
                 || state.is(Blocks.COBWEB) || state.is(Blocks.POWDER_SNOW) || state.is(Blocks.WITHER_ROSE);
     }
 
+    /** A missed low jump is recoverable; a jump over a deep drop is replaced by a bridge. */
+    boolean recoverableGap(int x, int y, int z) {
+        for (int depth = 1; depth <= SAFE_FALL; depth++) {
+            int below = y - depth;
+            if (below < level.getMinY() || hazard(x, below, z)) return false;
+            if (water(x, below, z) || !collision(x, below, z).isEmpty()) return true;
+        }
+        return false;
+    }
+
     /** Standing on burning floors hurts; allowed, but only as a last resort. */
     double floorPenalty(int x, int y, int z) {
         return burns(state(x, y, z)) || burns(state(x, y - 1, z)) ? 40 : 0;

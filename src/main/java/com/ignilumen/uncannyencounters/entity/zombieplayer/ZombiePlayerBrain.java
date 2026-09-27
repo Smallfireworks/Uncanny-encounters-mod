@@ -2,7 +2,9 @@ package com.ignilumen.uncannyencounters.entity.zombieplayer;
 
 import com.ignilumen.uncannyencounters.entity.ZombiePlayer;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
+import java.util.ArrayDeque;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -21,7 +23,6 @@ import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.gamerules.GameRules;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -44,9 +45,11 @@ public final class ZombiePlayerBrain {
     private @Nullable BlockPos roam, retreat, lastSeen, searching;
     private @Nullable UUID chasing;
     private double closest;
-    private long progressAt;
+    private long progressAt, lastObservedAt, nextMemorySearchAt, mealDeadline, mealBlockDeadline;
+    private final Deque<BlockPos> mealWall = new ArrayDeque<>();
+    private @Nullable BlockPos memorySearch;
     private Vec3 targetPos = Vec3.ZERO, targetVelocity = Vec3.ZERO;
-    private boolean returning, dueling, walled, sheltered;
+    private boolean returning, dueling, sheltered;
 
     public ZombiePlayerBrain(ZombiePlayer mob) {
         this.mob = mob;
@@ -60,6 +63,22 @@ public final class ZombiePlayerBrain {
         retreat = null;
     }
 
+    public void observeDanger(ServerLevel level) { duelist.observe(level); }
+    public boolean canStartMeal() { return !mob.evolved() || !pilot.committed(); }
+
+    /** Defensive movement also works outside melee; do not abandon an airborne route action. */
+    private boolean dodgeDanger(ServerLevel level) {
+        if (!mob.evolved() || !mob.onGround() || pilot.committed()) return false;
+        Vec3 escape = duelist.projectileEscape(level);
+        if (escape == null) return false;
+        endDuel();
+        pilot.stop(level);
+        mob.setSprinting(!mob.isUsingItem());
+        mob.setEdgeGuard(true);
+        mob.steering().steer(escape, 1, true, mob.getYRot());
+        return true;
+    }
+
     private void hold(ServerLevel level) {
         endDuel();
         pilot.stop(level);
@@ -68,69 +87,95 @@ public final class ZombiePlayerBrain {
         mob.steering().steer(mob.position(), 1, true);
     }
 
-    /** Starts a meal: drop whatever it was doing; an evolved zombie may wall itself off first. */
+    /** Build shelter before eating; never synthesize a wall during item use. */
     public void beginMeal(ServerLevel level) {
         stop(level);
-        walled = sheltered = false;
+        sheltered = false;
+        mealWall.clear();
+        LivingEntity threat = mealThreat();
+        Vec3 location = knownThreat(threat);
+        if (!mob.evolved() || location == null || !mob.onGround()
+                || !level.getGameRules().get(GameRules.MOB_GRIEFING)) return;
+        Vec3 offset = location.subtract(mob.position());
+        Direction toward = Direction.getApproximateNearest(offset.x, 0, offset.z);
+        BlockPos front = mob.blockPosition().relative(toward);
+        for (BlockPos base : new BlockPos[]{front, front.relative(toward.getClockWise()), front.relative(toward.getCounterClockWise())}) {
+            mealWall.add(base);
+            mealWall.add(base.above());
+        }
+        mealDeadline = level.getGameTime() + 60;
+        mealBlockDeadline = level.getGameTime() + 10;
     }
 
-    /** While eating: shelter behind a quick wall (evolved), else walk away from whoever is fighting it, never mining. */
+    /** At most one click per tick; inaccessible cells are skipped, and preparation is bounded. */
+    public boolean prepareMeal(ServerLevel level) {
+        hold(level);
+        mob.setAggressive(false);
+        long now = level.getGameTime();
+        if (!mob.evolved() || now >= mealDeadline || mealThreat() == null
+                || !level.getGameRules().get(GameRules.MOB_GRIEFING)) mealWall.clear();
+        BlockPos pos = mealWall.peekFirst();
+        if (pos == null) return true;
+        if (dodgeDanger(level)) return false;
+        if (!level.getBlockState(pos).canBeReplaced() || now >= mealBlockDeadline) {
+            mealWall.removeFirst();
+            mealBlockDeadline = now + 10;
+            return mealWall.isEmpty();
+        }
+        if (mob.actions().tryPlace(level, pos)) {
+            sheltered = true;
+            mealWall.removeFirst();
+            mealBlockDeadline = now + 10;
+        }
+        // Start eating on a later tick, never on the same tick as the last placement.
+        return false;
+    }
+
+    private @Nullable LivingEntity mealThreat() {
+        LivingEntity target = mob.getTarget();
+        if (validTarget(target)) return target;
+        LivingEntity attacker = mob.getLastHurtByMob();
+        return validTarget(attacker) ? attacker : null;
+    }
+
+    private @Nullable Vec3 knownThreat(@Nullable LivingEntity target) {
+        if (target == null) return null;
+        if (!mob.evolved()) return target.position();
+        if (mob.getSensing().hasLineOfSight(target)) {
+            track(target, true, mob.level().getGameTime());
+            return targetPos;
+        }
+        return target.getUUID().equals(chasing) && lastSeen != null ? targetPos : null;
+    }
+
+    /** Eating can retreat or hold cover, but cannot build, mine, or track an unseen target. */
     public void evade(ServerLevel level) {
         mob.setAggressive(false);
-        LivingEntity threat = mob.getTarget();
-        LivingEntity attacker = mob.getLastHurtByMob();
-        if (!validTarget(threat)) threat = validTarget(attacker) ? attacker : null;
+        if (dodgeDanger(level)) return;
+        LivingEntity enemy = mealThreat();
+        Vec3 threat = knownThreat(enemy);
         if (threat == null) {
             stop(level);
             return;
         }
-        if (mob.evolved() && !walled && mob.onGround()) {
-            walled = true;
-            sheltered = wallUp(level, threat);
-        }
-        if (sheltered) {
+        if (sheltered && !mob.actions().clearSight(threat.add(0, 1.5, 0))) {
             hold(level);
-            mob.getLookControl().setLookAt(threat, 45, 45);
+            mob.getLookControl().setLookAt(threat.add(0, 1.5, 0));
             return;
         }
         if (retreat == null || mob.blockPosition().distSqr(retreat) <= 2) retreat = retreatSpot(level, threat);
         if (retreat == null) {
             stop(level);
-            mob.getLookControl().setLookAt(threat, 45, 45);
+            if (mob.evolved()) mob.getLookControl().setLookAt(threat.add(0, 1.5, 0));
+            else mob.getLookControl().setLookAt(enemy, 45, 45);
             return;
         }
         pilot.follow(new RoutePlanner.Goal(retreat, 1, 1), false, false);
         pilot.tick(level);
     }
 
-    /** A three-wide, two-high wall of zombie blocks between it and the threat. */
-    private boolean wallUp(ServerLevel level, LivingEntity threat) {
-        if (!level.getGameRules().get(GameRules.MOB_GRIEFING)) return false;
-        Vec3 offset = threat.position().subtract(mob.position());
-        Direction toward = Direction.getApproximateNearest(offset.x, 0, offset.z);
-        BlockPos front = mob.blockPosition().relative(toward);
-        TemporaryEdits edits = TemporaryEdits.get(level);
-        boolean built = false;
-        for (BlockPos base : new BlockPos[]{front, front.relative(toward.getClockWise()), front.relative(toward.getCounterClockWise())}) {
-            for (BlockPos pos : new BlockPos[]{base, base.above()}) {
-                if (buildable(level, pos)) built |= edits.placeBlock(level, pos, mob);
-            }
-        }
-        if (built) mob.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
-        return built;
-    }
-
-    private static boolean buildable(ServerLevel level, BlockPos pos) {
-        if (!level.getBlockState(pos).canBeReplaced() || !level.getEntitiesOfClass(LivingEntity.class, new AABB(pos)).isEmpty()) return false;
-        for (Direction direction : Direction.values()) {
-            BlockPos next = pos.relative(direction);
-            if (!level.getBlockState(next).getCollisionShape(level, next).isEmpty()) return true;
-        }
-        return false;
-    }
-
-    private @Nullable BlockPos retreatSpot(ServerLevel level, LivingEntity threat) {
-        double dx = mob.getX() - threat.getX(), dz = mob.getZ() - threat.getZ();
+    private @Nullable BlockPos retreatSpot(ServerLevel level, Vec3 threat) {
+        double dx = mob.getX() - threat.x, dz = mob.getZ() - threat.z;
         double away = dx * dx + dz * dz < 1.0E-4 ? mob.getRandom().nextDouble() * Math.PI * 2 : Math.atan2(dz, dx);
         Terrain terrain = new Terrain(level, false, mob.evolved());
         for (double turn : RETREAT_TURNS) {
@@ -163,6 +208,7 @@ public final class ZombiePlayerBrain {
             if (validTarget(attacker) && mob.tickCount - mob.getLastHurtByMobTimestamp() < 200) target = attacker;
             else if (target == null) target = level.players().stream().filter(this::validTarget)
                     .filter(player -> mob.distanceToSqr(player) <= 40 * 40)
+                    .filter(player -> !mob.evolved() || inTerritory(player.position()) && mob.getSensing().hasLineOfSight(player))
                     .filter(player -> !ignored.containsKey(player.getUUID()) || mob.getSensing().hasLineOfSight(player))
                     .min(Comparator.comparingDouble(mob::distanceToSqr)).orElse(null);
             mob.setTarget(target);
@@ -170,7 +216,8 @@ public final class ZombiePlayerBrain {
         if (target != null) {
             boolean visible = mob.getSensing().hasLineOfSight(target);
             track(target, visible, now);
-            if (!visible && !pilot.handlingBlock() && now - progressAt > PATIENCE) {
+            if (!visible && (mob.evolved() ? now - lastObservedAt >= SEARCH_TICKS
+                    : !pilot.handlingBlock() && now - progressAt > PATIENCE)) {
                 giveUp(target, now);
                 target = null;
             } else {
@@ -178,7 +225,8 @@ public final class ZombiePlayerBrain {
                 returning = false;
                 roam = null;
                 searching = null;
-                if (!scavenge(level, target)) combat(level, target, visible);
+                if (mob.evolved() && !visible) pursueMemory(level);
+                else if (!scavenge(level, target)) combat(level, target, visible);
             }
         }
         if (target == null) {
@@ -189,9 +237,11 @@ public final class ZombiePlayerBrain {
             if (searching != null) search(level);
             else if (!scavenge(level, null)) roam(level);
         }
+        if (!dueling && dodgeDanger(level)) return;
         pilot.tick(level);
         target = mob.getTarget();
-        if (target != null && !pilot.handlingBlock() && !dueling) mob.getLookControl().setLookAt(target, 45, 45);
+        if (target != null && !pilot.handlingBlock() && !pilot.committed() && !dueling
+                && (!mob.evolved() || mob.getSensing().hasLineOfSight(target))) mob.getLookControl().setLookAt(target, 45, 45);
     }
 
     /** Progress means seeing the target, working on a block, or getting closer; its velocity feeds interception. */
@@ -199,18 +249,53 @@ public final class ZombiePlayerBrain {
         if (!target.getUUID().equals(chasing)) {
             chasing = target.getUUID();
             closest = Double.MAX_VALUE;
-            progressAt = now;
-            targetPos = target.position();
+            progressAt = lastObservedAt = now;
+            lastSeen = null;
+            memorySearch = null;
+            targetPos = mob.evolved() ? mob.position() : target.position();
             targetVelocity = Vec3.ZERO;
         }
-        targetVelocity = targetVelocity.scale(0.6).add(target.position().subtract(targetPos).scale(0.4));
+        if (mob.evolved() && !visible) return;
+        targetVelocity = !mob.evolved() || lastSeen != null && now - lastObservedAt == 1
+                ? targetVelocity.scale(0.6).add(target.position().subtract(targetPos).scale(0.4)) : Vec3.ZERO;
         targetPos = target.position();
         double distance = mob.distanceTo(target);
-        if (visible) lastSeen = target.blockPosition();
+        if (visible) {
+            lastSeen = target.blockPosition();
+            lastObservedAt = now;
+            memorySearch = null;
+        }
         if (visible || pilot.handlingBlock() || distance < closest - 0.5) {
             progressAt = now;
             closest = Math.min(closest, distance);
         }
+    }
+
+    /** Only stored observations are used here; no live target coordinates are consulted. */
+    private void pursueMemory(ServerLevel level) {
+        endDuel();
+        mob.setAggressive(false);
+        if (mob.isUsingItem()) mob.stopUsingItem();
+        long now = level.getGameTime();
+        if (memorySearch == null) {
+            Vec3 prediction = targetVelocity.multiply(1, 0, 1).scale(6);
+            if (prediction.lengthSqr() > 4) prediction = prediction.normalize().scale(2);
+            memorySearch = BlockPos.containing(targetPos.add(prediction));
+            nextMemorySearchAt = now + 40;
+        }
+        if (mob.blockPosition().closerThan(memorySearch, 2) && now >= nextMemorySearchAt) {
+            BlockPos anchor = lastSeen == null ? BlockPos.containing(targetPos) : lastSeen;
+            memorySearch = anchor.offset(mob.getRandom().nextInt(9) - 4, 0, mob.getRandom().nextInt(9) - 4);
+            nextMemorySearchAt = now + 40;
+        }
+        if (!inTerritory(Vec3.atCenterOf(memorySearch))) {
+            hold(level);
+            return;
+        }
+        Vec3 remembered = Vec3.atBottomCenterOf(memorySearch);
+        BlockPos wall = breachBlockToward(level, remembered.add(0, 1.5, 0), remembered.add(0, 0.9, 0));
+        if (wall != null && pilot.breach(level, wall)) return;
+        pilot.follow(new RoutePlanner.Goal(memorySearch, 1, 1), true, true);
     }
 
     /**
@@ -245,8 +330,12 @@ public final class ZombiePlayerBrain {
     private boolean validTarget(@Nullable LivingEntity target) {
         return target != null && target != mob && target.isAlive() && mob.canAttack(target)
                 && (!(target instanceof Player player) || !player.isCreative() && !player.isSpectator())
-                && target.position().distanceToSqr(Vec3.atCenterOf(mob.home())) <= 64 * 64
-                && mob.distanceToSqr(target) <= 64 * 64;
+                && target.level() == mob.level()
+                && (mob.evolved() && !mob.getSensing().hasLineOfSight(target) || inTerritory(target.position()));
+    }
+
+    private boolean inTerritory(Vec3 point) {
+        return point.distanceToSqr(Vec3.atCenterOf(mob.home())) <= 64 * 64 && point.distanceToSqr(mob.position()) <= 64 * 64;
     }
 
     private boolean scavenge(ServerLevel level, @Nullable LivingEntity target) {
@@ -263,16 +352,24 @@ public final class ZombiePlayerBrain {
 
     private void combat(ServerLevel level, LivingEntity target, boolean visible) {
         mob.setAggressive(true);
+        if (mob.evolved()) {
+            duelist.watchArcher(target, visible);
+            if (pilot.committed()) return;
+        }
         ItemStack weapon = mob.getMainHandItem();
         boolean bow = weapon.getItem() instanceof BowItem, crossbow = weapon.getItem() instanceof CrossbowItem;
         double distance = mob.distanceToSqr(target);
         if ((bow || crossbow) && visible && distance <= 16 * 16 && distance >= 9) {
-            if (mob.evolved()) {
+            if (mob.evolved() && mob.footing().canApproach(target.position())) {
                 if (!dueling) pilot.stop(level);
                 dueling = true;
                 duelist.kite(target);
-            } else {
+            } else if (!mob.evolved()) {
                 stop(level);
+            } else {
+                endDuel();
+                pilot.follow(chaseGoal(target, visible), true, true);
+                return;
             }
             shoot(level, target, weapon, crossbow);
             return;
@@ -281,10 +378,10 @@ public final class ZombiePlayerBrain {
         if (mob.evolved() && duelPause == 0 && engages(target, visible, distance)) {
             if (!dueling) pilot.stop(level);
             dueling = true;
-            attackCooldown = duelist.melee(level, target, attackCooldown);
+            attackCooldown = duelist.melee(level, target, attackCooldown, targetVelocity);
             // Closing in but walled off, or held at a drop by the edge guard: let the pilot find a way round for a while.
             boolean stuck = mob.horizontalCollision || mob.onGround() && mob.getDeltaMovement().horizontalDistanceSqr() < 0.0025;
-            blockedTicks = stuck && attackCooldown <= 2 && !Duelist.inReach(mob, target) ? blockedTicks + 1 : 0;
+            blockedTicks = stuck && attackCooldown <= 2 && !mob.actions().hasAttackLine(target, Duelist.REACH) ? blockedTicks + 1 : 0;
             if (blockedTicks > BLOCKED_TICKS) {
                 duelPause = DUEL_PAUSE;
                 endDuel();
@@ -293,9 +390,10 @@ public final class ZombiePlayerBrain {
         }
         endDuel();
         boolean inReach = mob.evolved() ? Duelist.inReach(mob, target) : mob.isWithinMeleeAttackRange(target);
-        if (visible && inReach) {
+        if (visible && inReach && (!mob.evolved() || mob.actions().hasAttackLine(target, Duelist.REACH))) {
             stop(level);
-            if (attackCooldown == 0) {
+            if (mob.evolved()) mob.getLookControl().setLookAt(target, 45, 45);
+            if (attackCooldown == 0 && (!mob.evolved() || mob.actions().canAttack(target, Duelist.REACH))) {
                 mob.swing(InteractionHand.MAIN_HAND, SwingAnimation.DEFAULT);
                 mob.doHurtTarget(level, target);
                 attackCooldown = Duelist.cooldown(mob);
@@ -311,8 +409,9 @@ public final class ZombiePlayerBrain {
 
     /** Evolved zombies duel in the open, and rush a distant archer head-on, dodging, rather than along a route. */
     private boolean engages(LivingEntity target, boolean visible, double distanceSqr) {
-        return duelist.engages(target, visible) || visible && Duelist.aiming(target) && distanceSqr <= 24 * 24
-                && Math.abs(target.getY() - mob.getY()) < 2.5 && !mob.isInWater();
+        return duelist.engages(target, visible) || visible && duelist.waryOfArcher(target) && distanceSqr <= 32 * 32
+                && Math.abs(target.getY() - mob.getY()) < 2.5 && !mob.isInWater()
+                && mob.footing().canApproach(target.position());
     }
 
     private void endDuel() {
@@ -326,14 +425,17 @@ public final class ZombiePlayerBrain {
 
     private void shoot(ServerLevel level, LivingEntity target, ItemStack weapon, boolean crossbow) {
         if (attackCooldown > 0) return;
+        if (mob.evolved() && !mob.actions().canAttack(target, 16)) return;
         if (crossbow && CrossbowItem.isCharged(weapon)) {
             mob.stopUsingItem();
+            if (mob.evolved()) mob.actions().attacked();
             ((CrossbowItem)weapon.getItem()).performShooting(level, mob, InteractionHand.MAIN_HAND, weapon, 3.15F,
                     14 - level.getDifficulty().getId() * 4, target);
             attackCooldown = 30;
         } else if (!mob.isUsingItem()) {
             mob.startUsingItem(InteractionHand.MAIN_HAND);
         } else if (!crossbow && mob.getTicksUsingItem() >= 20) {
+            if (mob.evolved()) mob.actions().attacked();
             shootBow(level, target, weapon);
             mob.stopUsingItem();
             attackCooldown = 20;
@@ -360,12 +462,16 @@ public final class ZombiePlayerBrain {
      * quickest block on the line to its eyes or body, and strike through the hole once it opens.
      */
     private @Nullable BlockPos breachBlock(ServerLevel level, LivingEntity target) {
+        return breachBlockToward(level, target.getEyePosition(), target.getBoundingBox().getCenter());
+    }
+
+    private @Nullable BlockPos breachBlockToward(ServerLevel level, Vec3 targetEye, Vec3 targetCenter) {
         if (!pilot.unreachable() || !level.getGameRules().get(GameRules.MOB_GRIEFING)) return null;
         Vec3 eye = mob.getEyePosition();
-        if (eye.distanceToSqr(target.getEyePosition()) > BREACH_RANGE * BREACH_RANGE) return null;
+        if (eye.distanceToSqr(targetEye) > BREACH_RANGE * BREACH_RANGE) return null;
         BlockPos best = null;
         float fastest = 0;
-        for (Vec3 aim : new Vec3[]{target.getEyePosition(), target.getBoundingBox().getCenter()}) {
+        for (Vec3 aim : new Vec3[]{targetEye, targetCenter}) {
             BlockHitResult hit = level.clip(new ClipContext(eye, aim, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, mob));
             if (hit.getType() != HitResult.Type.BLOCK) continue;
             BlockPos pos = hit.getBlockPos();

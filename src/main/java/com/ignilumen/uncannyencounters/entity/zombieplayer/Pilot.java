@@ -4,7 +4,11 @@ import com.ignilumen.uncannyencounters.entity.ZombiePlayer;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.util.Mth;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.sounds.SoundEvents;
@@ -54,6 +58,10 @@ public final class Pilot {
     private @Nullable BlockState miningState;
     private float miningProgress;
     private int swingTicks, progressPhase;
+    private final Set<BlockPos> extraDone = new HashSet<>();
+    private @Nullable BlockPos extraPlace;
+    private @Nullable Vec3 extraApproach;
+    private long extraDeadline;
     private static final int MOVING = 0, BRIDGING = 1, APPROACHING = 2;
 
     public Pilot(ZombiePlayer mob) {
@@ -80,6 +88,13 @@ public final class Pilot {
 
     public boolean active() {
         return desired != null;
+    }
+
+    /** These actions own movement until their landing/completion, even when a target is close. */
+    boolean committed() {
+        Step step = current();
+        return step != null && (step.kind() == Step.Kind.PILLAR || step.kind() == Step.Kind.GAP_JUMP
+                || step.kind() == Step.Kind.CLIMB || !mob.onGround() && !mob.isInWater());
     }
 
     /** The last search could only get closer, not reach the goal. */
@@ -223,6 +238,10 @@ public final class Pilot {
     }
 
     private void mine(ServerLevel level, Step step, BlockPos pos, BlockState state) {
+        if (step.kind() != Step.Kind.DIG_DOWN && supportsBody(level, pos, state)) {
+            fail(level, step);
+            return;
+        }
         if (!within(pos, REACH)) {
             approach(level, step);
             return;
@@ -239,6 +258,8 @@ public final class Pilot {
      * target, standing still. Any route is dropped, but progress on the same block carries over.
      */
     public boolean breach(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (supportsBody(level, pos, state)) return false;
         if (desired != null || !path.isEmpty()) {
             desired = planned = null;
             search = null;
@@ -249,7 +270,11 @@ public final class Pilot {
             stepTicks = stallTicks = jumps = 0;
             mob.setCrouching(false);
         }
-        return dig(level, pos, level.getBlockState(pos)) != Dig.FAILED;
+        return dig(level, pos, state) != Dig.FAILED;
+    }
+
+    private boolean supportsBody(ServerLevel level, BlockPos pos, BlockState state) {
+        return MiningSafety.supportsBody(mob.getBoundingBox(), pos, state.getCollisionShape(level, pos));
     }
 
     private enum Dig { WORKING, DONE, FAILED }
@@ -297,6 +322,7 @@ public final class Pilot {
     private void bridge(ServerLevel level, Step step) {
         BlockPos pos = step.place();
         if (!level.getBlockState(pos).canBeReplaced()) {
+            if (mob.evolved() && !widenBridge(level, step)) return;
             placed = true;
             return;
         }
@@ -307,9 +333,13 @@ public final class Pilot {
         mob.setSprinting(false);
         Vec3 edge = center(step.from()).add((step.to().getX() - step.from().getX()) * 0.8, 0, (step.to().getZ() - step.from().getZ()) * 0.8);
         steering.steer(edge, fast ? FAST_BRIDGE : SNEAK, true);
-        mob.getLookControl().setLookAt(Vec3.atCenterOf(pos));
+        if (!mob.evolved()) mob.getLookControl().setLookAt(Vec3.atCenterOf(pos));
         double distance = horizontalDistance(edge);
         if (!mob.onGround() || distance > (fast ? 0.45 : 0.35) && !stalled(BRIDGING, distance, 8)) return;
+        if (mob.evolved()) {
+            if (mob.actions().tryPlace(level, pos)) placed = !highEdge(step.to());
+            return;
+        }
         if (!level.getEntitiesOfClass(LivingEntity.class, new AABB(pos), entity -> entity != mob).isEmpty()) return;
         if (!level.getGameRules().get(GameRules.MOB_GRIEFING) || !TemporaryEdits.get(level).placeBlock(level, pos, mob)) {
             fail(level, step);
@@ -326,6 +356,15 @@ public final class Pilot {
     private void gapJump(ServerLevel level, Step step) {
         Vec3 start = center(step.from());
         double dx = Integer.signum(step.to().getX() - step.from().getX()), dz = Integer.signum(step.to().getZ() - step.from().getZ());
+        Vec3 landing = mob.footing().floor(new Vec3(step.to().getX() + 0.5, step.floor(), step.to().getZ() + 0.5));
+        if (!jumped && (landing == null || Math.abs(landing.y - step.floor()) > 0.1
+                || !level.noCollision(mob, new AABB(landing.x - 0.3, landing.y + 0.01, landing.z - 0.3,
+                        landing.x + 0.3, landing.y + 1.8, landing.z + 0.3)))) {
+            fail(level, step);
+            return;
+        }
+        float yaw = (float)(Mth.atan2(dz, dx) * Mth.RAD_TO_DEG) - 90;
+        mob.getLookControl().setLookAt(center(step.to()).x, mob.getEyeY(), center(step.to()).z);
         if (!runUp) {
             mob.setEdgeGuard(true);
             mob.setSprinting(false);
@@ -335,11 +374,12 @@ public final class Pilot {
             if (mob.onGround() && (distance < 0.15 || stalled(APPROACHING, distance, 10))) runUp = true;
             return;
         }
-        mob.setEdgeGuard(false);
+        mob.setEdgeGuard(!jumped);
         mob.setSprinting(true);
-        steering.steer(center(step.to()), 1.0, false);
+        steering.steer(center(step.to()), 1.0, jumped && horizontalDistance(center(step.to())) < 1.3);
         double along = (mob.getX() - start.x) * dx + (mob.getZ() - start.z) * dz;
-        if (!jumped && mob.onGround() && along >= 0.3) {
+        if (!jumped && mob.onGround() && along >= 0.3 && Math.abs(Mth.wrapDegrees(mob.getYRot() - yaw)) < 10
+                && mob.getDeltaMovement().x * dx + mob.getDeltaMovement().z * dz >= 0.18) {
             mob.getJumpControl().jump();
             jumped = true;
         } else if (jumped && mob.onGround() && feetCell().getX() == step.to().getX() && feetCell().getZ() == step.to().getZ()) {
@@ -367,7 +407,11 @@ public final class Pilot {
         BlockPos pos = step.place();
         if (placed) {
             steering.steer(center(step.to()), SNEAK, true);
-            if (mob.onGround() && mob.getY() >= step.floor() - 0.01) advance(level);
+            if (mob.onGround() && mob.getY() >= step.floor() - 0.01) {
+                if (mob.evolved() && desired != null && Math.abs(desired.center().getY() - step.floor()) < 1
+                        && highEdge(step.to()) && !expandPlatform(level, step)) return;
+                advance(level);
+            }
             return;
         }
         Vec3 center = center(step.from());
@@ -381,6 +425,10 @@ public final class Pilot {
             return;
         }
         if (mob.getY() < pos.getY() + 1.0 || !level.getBlockState(pos).canBeReplaced()) return;
+        if (mob.evolved()) {
+            placed = mob.actions().tryPlace(level, pos);
+            return;
+        }
         if (!level.getEntitiesOfClass(LivingEntity.class, new AABB(pos), entity -> entity != mob).isEmpty()) return;
         if (!level.getGameRules().get(GameRules.MOB_GRIEFING) || !TemporaryEdits.get(level).placeBlock(level, pos, mob)) {
             fail(level, step);
@@ -420,7 +468,16 @@ public final class Pilot {
     }
 
     private void advance(ServerLevel level) {
-        index++;
+        if (!extraDone.isEmpty()) {
+            // Widening changes terrain outside the original step's simulation. Any search
+            // anchored before those edits may now ask us to dig through the new platform.
+            path = List.of();
+            index = 0;
+            search = null;
+            anchor = null;
+            planned = null;
+            planDelay = 0;
+        } else index++;
         resetStep(level);
     }
 
@@ -444,11 +501,78 @@ public final class Pilot {
         clearCrack(level);
         mining = null;
         miningState = null;
+        extraDone.clear();
+        extraPlace = null;
+        extraApproach = null;
         placed = runUp = jumped = false;
         stepTicks = stallTicks = jumps = swingTicks = 0;
         progressPhase = -1;
         bestDistance = Double.MAX_VALUE;
         mob.setCrouching(false);
+    }
+
+    private boolean highEdge(BlockPos feet) {
+        for (Direction side : Direction.Plane.HORIZONTAL)
+            if (mob.footing().dangerousBelow(feet.relative(side))) return true;
+        return false;
+    }
+
+    private boolean widenBridge(ServerLevel level, Step step) {
+        if (!highEdge(step.to())) return true;
+        Direction forward = Direction.getApproximateNearest(step.to().getX() - step.from().getX(), 0,
+                step.to().getZ() - step.from().getZ());
+        return extraBlock(level, step.place().relative(forward.getClockWise()));
+    }
+
+    private boolean expandPlatform(ServerLevel level, Step step) {
+        int dx = desired.center().getX() - step.to().getX(), dz = desired.center().getZ() - step.to().getZ();
+        Direction forward = dx == 0 && dz == 0 ? mob.getDirection() : Direction.getApproximateNearest(dx, 0, dz);
+        BlockPos base = step.to().below();
+        Direction side = forward.getClockWise();
+        for (BlockPos pos : new BlockPos[]{base.relative(side), base.relative(forward), base.relative(forward).relative(side)})
+            if (!extraBlock(level, pos)) return false;
+        return true;
+    }
+
+    /** Optional extra footing is bounded and still uses the same legal placement/input path. */
+    private boolean extraBlock(ServerLevel level, BlockPos pos) {
+        if (extraDone.contains(pos)) return true;
+        if (!level.getBlockState(pos).canBeReplaced()) {
+            extraDone.add(pos);
+            return true;
+        }
+        long now = level.getGameTime();
+        if (!pos.equals(extraPlace)) {
+            extraPlace = pos;
+            extraApproach = null;
+            extraDeadline = now + 20;
+        }
+        mob.setSprinting(false);
+        mob.setEdgeGuard(true);
+        // A side face underfoot is hidden from the centre of a column. Approach its lip with
+        // the same edge guard as bridging, then aim back at the exposed attachment face.
+        Vec3 approach = null;
+        double nearest = Double.MAX_VALUE;
+        for (Direction side : Direction.Plane.HORIZONTAL) {
+            if (extraApproach != null) break;
+            BlockPos support = pos.relative(side);
+            Vec3 stand = Vec3.atBottomCenterOf(support.above());
+            if (Math.abs(stand.y - mob.getY()) > 0.6 || !mob.footing().connected(stand)) continue;
+            Vec3 edge = stand.add(-side.getStepX() * 0.68, 0, -side.getStepZ() * 0.68);
+            double distance = edge.distanceToSqr(mob.position());
+            if (distance < nearest) {
+                nearest = distance;
+                approach = edge;
+            }
+        }
+        if (approach != null) extraApproach = approach;
+        steering.steer(extraApproach == null ? mob.position() : extraApproach, FAST_BRIDGE, true);
+        if (now >= extraDeadline || !level.getGameRules().get(GameRules.MOB_GRIEFING)) {
+            extraDone.add(pos);
+            return true;
+        }
+        if (mob.actions().tryPlace(level, pos)) extraDone.add(pos);
+        return false; // Never turn to a second new block in the same tick.
     }
 
     public void clearCrack(ServerLevel level) {
@@ -497,7 +621,8 @@ public final class Pilot {
         double length = bx * bx + bz * bz;
         double t = length == 0 ? 0 : Math.clamp(((mob.getX() - ax) * bx + (mob.getZ() - az) * bz) / length, 0, 1);
         double ox = mob.getX() - (ax + bx * t), oz = mob.getZ() - (az + bz * t);
-        return ox * ox + oz * oz > 1.2 * 1.2 || cell.getY() < Math.min(step.from().getY(), step.to().getY()) - 1
+        double allowance = extraPlace == null ? 1.2 : 2.2; // Optional footing requires stepping beside the route centre.
+        return ox * ox + oz * oz > allowance * allowance || cell.getY() < Math.min(step.from().getY(), step.to().getY()) - 1
                 || cell.getY() > Math.max(step.from().getY(), step.to().getY()) + 1;
     }
 
