@@ -62,3 +62,5 @@ Thumbs.db
 /reference/low_poly/*
 !/reference/low_poly/cave_angler.bbmodel
 !/reference/low_poly/cave_angler.geometry.json
+!/reference/low_poly/crystal_frog.bbmodel
+!/reference/low_poly/crystal_frog.geometry.json

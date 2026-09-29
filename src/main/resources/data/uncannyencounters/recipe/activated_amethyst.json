@@ -1,0 +1,8 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "ingredients": [
+    "uncannyencounters:viscous_amethyst",
+    "minecraft:blaze_powder"
+  ],
+  "result": { "id": "uncannyencounters:activated_amethyst", "count": 1 }
+}

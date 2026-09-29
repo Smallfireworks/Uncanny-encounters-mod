@@ -15,6 +15,14 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public final class ModEntities {
+    public static final EntityType<CrystalFrog> CRYSTAL_FROG = register("crystal_frog",
+            EntityType.Builder.of(CrystalFrog::new, MobCategory.CREATURE)
+                    .sized(0.72F * CrystalFrog.SIZE_SCALE, 0.46F * CrystalFrog.SIZE_SCALE)
+                    .eyeHeight(0.32F * CrystalFrog.SIZE_SCALE).clientTrackingRange(10).updateInterval(1));
+    public static final Item CRYSTAL_FROG_SPAWN_EGG = Registry.register(BuiltInRegistries.ITEM,
+            UncannyEncounters.id("crystal_frog_spawn_egg"), new SpawnEggItem(new Item.Properties()
+                    .setId(ResourceKey.create(Registries.ITEM, UncannyEncounters.id("crystal_frog_spawn_egg")))
+                    .spawnEgg(CRYSTAL_FROG)));
     public static final EntityType<ZombiePlayer> ZOMBIE_PLAYER = register("zombie_player",
             EntityType.Builder.of(ZombiePlayer::new, MobCategory.MONSTER)
                     .sized(0.6F, 1.8F).eyeHeight(1.62F).clientTrackingRange(10).updateInterval(1));
@@ -39,6 +47,10 @@ public final class ModEntities {
     }
 
     public static void initialize() {
+        FabricDefaultAttributeRegistry.register(CRYSTAL_FROG, CrystalFrog.createAttributes());
+        SpawnPlacements.register(CRYSTAL_FROG, SpawnPlacementTypes.ON_GROUND,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CrystalFrog::canSpawn);
+        BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.CREATURE, CRYSTAL_FROG, 4, 1, 2);
         FabricDefaultAttributeRegistry.register(ZOMBIE_PLAYER, ZombiePlayer.createAttributes());
         FabricDefaultAttributeRegistry.register(CAVE_ANGLER, CaveAngler.createAttributes());
         SpawnPlacements.register(CAVE_ANGLER, SpawnPlacementTypes.NO_RESTRICTIONS,
@@ -48,6 +60,7 @@ public final class ModEntities {
                 .register(entries -> {
                     entries.accept(CAVE_ANGLER_SPAWN_EGG);
                     entries.accept(ZOMBIE_PLAYER_SPAWN_EGG);
+                    entries.accept(CRYSTAL_FROG_SPAWN_EGG);
                 });
     }
 

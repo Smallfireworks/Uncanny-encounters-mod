@@ -3,6 +3,7 @@ package com.ignilumen.uncannyencounters;
 import net.fabricmc.api.ModInitializer;
 import com.ignilumen.uncannyencounters.entity.ModEntities;
 import com.ignilumen.uncannyencounters.block.ModBlocks;
+import com.ignilumen.uncannyencounters.item.ModItems;
 import com.ignilumen.uncannyencounters.entity.zombieplayer.ZombiePlayerSpawns;
 
 import net.minecraft.resources.Identifier;
@@ -25,6 +26,7 @@ public class UncannyEncounters implements ModInitializer {
 		// Proceed with mild caution.
 
 		ModBlocks.initialize();
+		ModItems.initialize();
 		ModEntities.initialize();
 		ZombiePlayerSpawns.initialize();
 		LOGGER.info("Uncanny Encounters initialized");

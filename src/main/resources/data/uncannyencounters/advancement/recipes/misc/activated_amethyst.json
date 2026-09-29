@@ -1,0 +1,15 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_viscous_amethyst": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": { "items": [{ "items": "uncannyencounters:viscous_amethyst" }] }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": { "recipes": "uncannyencounters:activated_amethyst" }
+    }
+  },
+  "requirements": [["has_viscous_amethyst", "has_the_recipe"]],
+  "rewards": { "recipes": ["uncannyencounters:activated_amethyst"] }
+}

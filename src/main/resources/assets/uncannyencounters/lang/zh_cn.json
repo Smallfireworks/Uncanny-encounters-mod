@@ -1,4 +1,10 @@
 {
+  "entity.uncannyencounters.crystal_frog": "水晶青蛙",
+  "item.uncannyencounters.crystal_frog_spawn_egg": "水晶青蛙刷怪蛋",
+  "item.uncannyencounters.viscous_amethyst": "粘稠紫水晶",
+  "item.uncannyencounters.activated_amethyst": "活化紫水晶",
+  "death.attack.uncannyencounters.crystal_reflection": "%1$s被%2$s的水晶反伤击败了",
+  "death.attack.uncannyencounters.crystal_reflection.item": "%1$s被%2$s的水晶反伤击败了",
   "entity.uncannyencounters.cave_angler": "洞穴垂钓者",
   "entity.uncannyencounters.angler_tongue": "洞穴垂钓者的舌头",
   "item.uncannyencounters.cave_angler_spawn_egg": "洞穴垂钓者刷怪蛋",
