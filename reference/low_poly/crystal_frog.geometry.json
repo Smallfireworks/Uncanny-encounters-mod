@@ -10,7 +10,7 @@
   "parts": [
     {
       "name": "body",
-      "triangles": 3425,
+      "triangles": 2376,
       "origin": [
         0.0,
         24.0,
@@ -19,7 +19,7 @@
     },
     {
       "name": "head",
-      "triangles": 664,
+      "triangles": 2353,
       "origin": [
         -0.014994829893112183,
         20.65741729736328,
@@ -28,7 +28,7 @@
     },
     {
       "name": "left_arm",
-      "triangles": 273,
+      "triangles": 181,
       "origin": [
         3.193885326385498,
         21.05852699279785,
@@ -37,7 +37,7 @@
     },
     {
       "name": "right_arm",
-      "triangles": 247,
+      "triangles": 159,
       "origin": [
         -3.223875045776367,
         21.05852699279785,
@@ -46,7 +46,7 @@
     },
     {
       "name": "left_leg",
-      "triangles": 451,
+      "triangles": 296,
       "origin": [
         3.193885326385498,
         21.3259334564209,
@@ -55,7 +55,7 @@
     },
     {
       "name": "right_leg",
-      "triangles": 516,
+      "triangles": 343,
       "origin": [
         -3.223875045776367,
         21.3259334564209,
@@ -64,7 +64,7 @@
     },
     {
       "name": "crystals",
-      "triangles": 424,
+      "triangles": 292,
       "origin": [
         -0.014994829893112183,
         20.122602462768555,

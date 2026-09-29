@@ -1,9 +1,11 @@
 """Adapt reference OBJ using Blender's decimator; no preview or game is rendered.
 
 Run: blender --background --factory-startup --python tools/generate_crystal_frog_model.py
+Append -- --geometry-only to retain the existing texture while rebuilding geometry.
 """
 import base64
 import json
+import sys
 from pathlib import Path
 import uuid
 import zipfile
@@ -51,19 +53,53 @@ obj = bpy.data.objects.new('Crystal Frog', mesh)
 bpy.context.collection.objects.link(obj)
 bpy.context.view_layer.objects.active = obj
 obj.select_set(True)
+texture_output = ASSETS / 'textures/entity/crystal_frog.png'
+if '--geometry-only' in sys.argv:
+    texture = bpy.data.images.load(str(texture_output), check_existing=False)
+else:
+    texture = bpy.data.images.load(str(texture_path), check_existing=False)
+    texture.scale(1024, 1024)
+    texture.filepath_raw = str(texture_output)
+    texture.file_format = 'PNG'
+    texture.save()
+pixels = list(texture.pixels)
+
+def in_eye(p):
+    x, y, z = p
+    return 0.045 < abs(x) < 0.245 and y > 0.34 and z > 0.28
+
+# Keep the small raised eye surfaces from being collapsed at the body's reduction rate.
+# The group is chosen in source coordinates before decimation, including the eyelids
+# around both pupils so their silhouette and UV transitions receive the same protection.
+eye_group = obj.vertex_groups.new(name='Eye detail')
+eye_vertices = [i for i, p in enumerate(vertices) if in_eye(p)]
+eye_group.add(eye_vertices, 0.9, 'REPLACE')
+# UV detail is not part of Blender's geometric collapse error. Fully pin faces
+# carrying the dark pupils: protecting the silhouette alone still smears or
+# clips the pupil where those vertices are merged into surrounding eye skin.
+pupil_vertices = set()
+for index, face in enumerate(faces):
+    center = tuple(sum(vertices[v][a] for v in face)/3 for a in range(3))
+    if not in_eye(center):
+        continue
+    corners = face_uvs[index*3:index*3+3]
+    u, v = (sum(c[a] for c in corners)/3 for a in range(2))
+    x, y = max(0, min(1023, int(u*1024))), max(0, min(1023, int(v*1024)))
+    pixel = (y*1024+x)*4
+    if max(pixels[pixel:pixel+3]) < 65/255:
+        pupil_vertices.update(face)
+eye_group.add(sorted(pupil_vertices), 1.0, 'REPLACE')
+print(f'Protecting {len(pupil_vertices)} pupil vertices', flush=True)
 modifier = obj.modifiers.new('Preserve reference silhouette', 'DECIMATE')
 modifier.ratio = min(1, 6000 / original_faces)
 modifier.use_collapse_triangulate = True
+modifier.vertex_group = eye_group.name
+modifier.invert_vertex_group = True
+modifier.vertex_group_factor = 0.01
 bpy.ops.object.modifier_apply(modifier=modifier.name)
 mesh = obj.data
 mesh.calc_loop_triangles()
 print(f'Reference reduction: {original_faces} -> {len(mesh.loop_triangles)} triangles', flush=True)
-
-texture = bpy.data.images.load(str(texture_path), check_existing=False)
-texture.scale(1024, 1024)
-texture.filepath_raw = str(ASSETS / 'textures/entity/crystal_frog.png')
-texture.file_format = 'PNG'
-texture.save()
 
 # Preserve original proportions; OBJ faces +Z, Minecraft models face -Z.
 scale = 16 * 0.72 / (upper[0]-lower[0])
@@ -112,7 +148,6 @@ for triangle in mesh.loop_triangles:
     parts[name]['triangles'].append([round(v, 6) for v in row])
 
 # Small amethyst badge for tamed frogs, colored from the original diffuse texture.
-pixels = list(texture.pixels)
 best = min(range(0, len(pixels), 64), key=lambda i:
            sum((pixels[i+k]-c)**2 for k, c in enumerate((0.82, 0.66, 0.94))))
 pixel = best//4
