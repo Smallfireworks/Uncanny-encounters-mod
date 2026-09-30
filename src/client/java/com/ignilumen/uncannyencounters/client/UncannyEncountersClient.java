@@ -6,6 +6,7 @@ import net.minecraft.client.renderer.entity.EntityRenderers;
 import com.ignilumen.uncannyencounters.entity.ModEntities;
 import com.ignilumen.uncannyencounters.client.model.CaveAnglerGeometry;
 import com.ignilumen.uncannyencounters.client.render.CrystalFrogRenderer;
+import com.ignilumen.uncannyencounters.client.render.LightMothRenderer;
 import com.ignilumen.uncannyencounters.client.render.CaveAnglerRenderer;
 import com.ignilumen.uncannyencounters.client.render.AnglerTongueRenderer;
 import com.ignilumen.uncannyencounters.client.render.ZombiePlayerRenderer;
@@ -13,6 +14,7 @@ import com.ignilumen.uncannyencounters.client.render.ZombiePlayerRenderer;
 public class UncannyEncountersClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		EntityRenderers.register(ModEntities.LIGHT_MOTH, LightMothRenderer::new);
 		EntityRenderers.register(ModEntities.CRYSTAL_FROG, CrystalFrogRenderer::new);
 		EntityRenderers.register(ModEntities.ZOMBIE_PLAYER, ZombiePlayerRenderer::new);
 		ModelLayerRegistry.registerModelLayer(CaveAnglerRenderer.LAYER, CaveAnglerGeometry::createLayer);

@@ -52,6 +52,7 @@ reference/low_poly/*.blend1
 !.env.example
 *.local
 *.log
+/logs/
 __pycache__/
 *.pyc
 Thumbs.db
@@ -64,3 +65,5 @@ Thumbs.db
 !/reference/low_poly/cave_angler.geometry.json
 !/reference/low_poly/crystal_frog.bbmodel
 !/reference/low_poly/crystal_frog.geometry.json
+!/reference/low_poly/light_moth.bbmodel
+!/reference/low_poly/light_moth.geometry.json

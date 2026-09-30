@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/template_lantern",
+  "textures": {
+    "lantern": "uncannyencounters:block/enhanced_moth_lure"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "uncannyencounters:moth_lure",
+    "uncannyencounters:moth_scale_dust"
+  ],
+  "result": {
+    "id": "uncannyencounters:enhanced_moth_lure",
+    "count": 1
+  }
+}

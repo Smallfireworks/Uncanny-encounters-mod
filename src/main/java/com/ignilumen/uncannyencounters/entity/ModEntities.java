@@ -15,6 +15,12 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public final class ModEntities {
+    public static final EntityType<LightMoth> LIGHT_MOTH = register("light_moth",
+            EntityType.Builder.of(LightMoth::new, MobCategory.AMBIENT)
+                    .sized(0.36F,0.36F).eyeHeight(0.2F).clientTrackingRange(8).updateInterval(1));
+    public static final Item LIGHT_MOTH_SPAWN_EGG = Registry.register(BuiltInRegistries.ITEM,
+            UncannyEncounters.id("light_moth_spawn_egg"),new SpawnEggItem(new Item.Properties()
+                    .setId(ResourceKey.create(Registries.ITEM,UncannyEncounters.id("light_moth_spawn_egg"))).spawnEgg(LIGHT_MOTH)));
     public static final EntityType<CrystalFrog> CRYSTAL_FROG = register("crystal_frog",
             EntityType.Builder.of(CrystalFrog::new, MobCategory.CREATURE)
                     .sized(0.72F * CrystalFrog.SIZE_SCALE, 0.46F * CrystalFrog.SIZE_SCALE)
@@ -47,6 +53,10 @@ public final class ModEntities {
     }
 
     public static void initialize() {
+        FabricDefaultAttributeRegistry.register(LIGHT_MOTH, LightMoth.createAttributes());
+        SpawnPlacements.register(LIGHT_MOTH,SpawnPlacementTypes.NO_RESTRICTIONS,
+                Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,LightMoth::canSpawn);
+        BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(),MobCategory.AMBIENT,LIGHT_MOTH,10,1,2);
         FabricDefaultAttributeRegistry.register(CRYSTAL_FROG, CrystalFrog.createAttributes());
         SpawnPlacements.register(CRYSTAL_FROG, SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CrystalFrog::canSpawn);
@@ -58,6 +68,7 @@ public final class ModEntities {
         BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.MONSTER, CAVE_ANGLER, 10, 1, 1);
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.SPAWN_EGGS)
                 .register(entries -> {
+                    entries.accept(LIGHT_MOTH_SPAWN_EGG);
                     entries.accept(CAVE_ANGLER_SPAWN_EGG);
                     entries.accept(ZOMBIE_PLAYER_SPAWN_EGG);
                     entries.accept(CRYSTAL_FROG_SPAWN_EGG);

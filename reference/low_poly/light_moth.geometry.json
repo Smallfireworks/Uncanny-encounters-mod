@@ -1,0 +1,44 @@
+{
+  "original_triangles": 50000,
+  "triangles": 16000,
+  "protected_vertices": 4372,
+  "double_sided": true,
+  "texture": [
+    2048,
+    2048
+  ],
+  "size_blocks": [
+    0.9,
+    0.3753,
+    0.5202
+  ],
+  "parts": [
+    {
+      "name": "body",
+      "triangles": 6270,
+      "origin": [
+        0.0,
+        24.0,
+        0.0
+      ]
+    },
+    {
+      "name": "left_wing",
+      "triangles": 4788,
+      "origin": [
+        1.4791767597198486,
+        20.232072830200195,
+        0.6473715901374817
+      ]
+    },
+    {
+      "name": "right_wing",
+      "triangles": 4942,
+      "origin": [
+        -1.4730055332183838,
+        20.232072830200195,
+        0.6473715901374817
+      ]
+    }
+  ]
+}

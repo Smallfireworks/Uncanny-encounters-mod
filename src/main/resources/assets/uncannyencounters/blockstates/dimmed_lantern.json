@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "hanging=false": {
+      "model": "uncannyencounters:block/dimmed_lantern"
+    },
+    "hanging=true": {
+      "model": "uncannyencounters:block/dimmed_lantern_hanging"
+    }
+  }
+}

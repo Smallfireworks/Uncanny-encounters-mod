@@ -19,5 +19,13 @@
   "gamerule.uncannyencounters.zombie_player_evolution_defeats": "僵尸玩家进化所需击败次数",
   "gamerule.uncannyencounters.zombie_player_evolution_defeats.description": "某位玩家的僵尸需要被玩家击败多少次，其僵尸才会进化。",
   "commands.uncannyencounters.zombieplayer.defeats": "%s的僵尸已被击败 %s 次（%s 次时进化）",
-  "commands.uncannyencounters.zombieplayer.reset": "已清空%s的僵尸被击败次数"
+  "commands.uncannyencounters.zombieplayer.reset": "已清空%s的僵尸被击败次数",
+  "entity.uncannyencounters.light_moth": "夺光蛾",
+  "item.uncannyencounters.light_moth_spawn_egg": "夺光蛾刷怪蛋",
+  "item.uncannyencounters.moth_scale_dust": "夺光鳞粉",
+  "block.uncannyencounters.moth_lure": "诱饵灯",
+  "block.uncannyencounters.enhanced_moth_lure": "强化诱饵灯",
+  "block.uncannyencounters.dimmed_torch": "熄灭的火把",
+  "block.uncannyencounters.dimmed_wall_torch": "熄灭的火把",
+  "block.uncannyencounters.dimmed_lantern": "熄灭的灯笼"
 }
