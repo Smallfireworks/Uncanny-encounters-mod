@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "uncannyencounters:enhanced_moth_lure",
+    "minecraft:breeze_rod"
+  ],
+  "result": {
+    "id": "uncannyencounters:enhanced_moth_lure_breeze_rod",
+    "count": 1
+  }
+}

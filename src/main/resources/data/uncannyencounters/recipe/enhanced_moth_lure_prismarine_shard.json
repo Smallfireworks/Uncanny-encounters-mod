@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "uncannyencounters:enhanced_moth_lure",
+    "minecraft:prismarine_shard"
+  ],
+  "result": {
+    "id": "uncannyencounters:enhanced_moth_lure_prismarine_shard",
+    "count": 1
+  }
+}

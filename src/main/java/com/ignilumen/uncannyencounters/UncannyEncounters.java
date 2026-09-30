@@ -6,6 +6,7 @@ import com.ignilumen.uncannyencounters.block.ModBlocks;
 import com.ignilumen.uncannyencounters.item.ModItems;
 import com.ignilumen.uncannyencounters.entity.zombieplayer.ZombiePlayerSpawns;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MothLights;
+import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
 
 import net.minecraft.resources.Identifier;
 
@@ -31,6 +32,7 @@ public class UncannyEncounters implements ModInitializer {
 		ModEntities.initialize();
 		ZombiePlayerSpawns.initialize();
 		MothLights.initialize();
+		MonsterLures.initialize();
 		LOGGER.info("Uncanny Encounters initialized");
 	}
 

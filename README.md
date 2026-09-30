@@ -1,6 +1,6 @@
 # Uncanny Encounters
 
-面向 Minecraft 26.3 / Fabric 的生物模组，当前版本为 **1.2.2**。包含洞穴垂钓者、僵尸玩家与水晶青蛙，提供简体中文和英文名称。
+面向 Minecraft 26.3 / Fabric 的生物模组，当前版本为 **1.2.2**。包含洞穴垂钓者、僵尸玩家、水晶青蛙和夺光蛾，提供简体中文与英文支持。
 
 ## 洞穴垂钓者
 
@@ -27,7 +27,7 @@
 
 默认情况下，同一玩家的死亡生成僵尸被玩家击败累计 3 次后，后续生成的僵尸会进化。进化版使用更快的挖掘、疾跑与跳劈、战斗走位、投射物应对及逐块建造的障碍或防御墙。增强操作具有转向、视线、反应时间和放置频率限制。
 
-死亡生成记录、进化计数和临时地形修改均保存到世界数据中。复杂地形下的寻路、战斗表现和多人体验需要结合游戏内反馈调整。
+死亡生成记录、进化计数和临时地形修改均随世界保存。
 
 ## 水晶青蛙
 
@@ -50,13 +50,49 @@
 
 **主人也按普通攻击规则处理**：高速攻击会被反伤，低速攻击会伤害青蛙，并按剩余血量触发反击或逃离。受击会解除坐下命令。
 
-模型由本地 `reference/水晶青蛙.zip` 中的原始 OBJ 直接减面，保留原模型轮廓、晶体斜面、眼睛和腹部纹理。运行时使用约 6,000 个三角面及 1024×1024 原图缩小贴图，通过 Minecraft 原生模型接口绘制，身体、头部和四肢分别控制。在参考网格基础上等比放大 15% 后，模型约宽 0.83 格、高 0.52 格；碰撞箱约宽 0.83 格、高 0.53 格。模型、碰撞箱、视线高度与阴影共用 `CrystalFrog.SIZE_SCALE`，缩放时脚底位置保持不变。
+## 夺光蛾
 
-运行时网格位于 `assets/uncannyencounters/geometry/crystal_frog.json`，可编辑的 Blockbench 网格位于 `reference/low_poly/crystal_frog.bbmodel`。重新从原始素材生成需要本地参考 ZIP 与 Blender，运行以下命令；游戏运行时不需要 Blender：
+夺光蛾是在地下徘徊的小型飞行生物，会围绕光源盘旋并暂时夺走它们的光。不会主动攻击，受伤后会逃离约 5 秒。
 
-```shell
-blender --background --factory-startup --python tools/generate_crystal_frog_model.py
-```
+- **6 点生命值（3 颗心）**，在主世界 Y < 48、无露天视野的空中生成，每组 1–2 只。
+- 寻找约 10 格内的普通火把、墙上火把与灯笼。靠近后先盘旋警告约 **3 秒**，伴随烟雾，然后将光源熄灭。
+- 驱赶或用诱饵引走后，光源约 **3 秒内恢复**；杀死夺光蛾会立即恢复它占用的光源。关闭 `minecraft:mob_griefing` 后，它不会再熄灭光源。
+- 灵魂火把、灵魂灯笼与诱饵灯不会被夺光蛾熄灭。
+- 死亡掉落 **1–2 个夺光鳞粉**，经验基础值为 1，遵循原版经验掉落条件。
+
+### 诱饵灯
+
+以下均为无序合成，可使用背包中的 2×2 合成栏或工作台：
+
+| 材料（各 1 个） | 产物 | 效果 |
+| --- | --- | --- |
+| 灯笼 + 荧石粉 + 紫水晶碎片 | 诱饵灯 ×1 | 吸引 12 格内的夺光蛾 |
+| 诱饵灯 + 夺光鳞粉 | 强化诱饵灯 ×1 | 吸引 24 格内的夺光蛾 |
+| 强化诱饵灯 + 下表任一掉落物 | 对应的强化诱饵灯 ×1 | 同时吸引 24 格内的夺光蛾和对应怪物 |
+
+诱饵灯可手持、放在地面或悬挂，放置后亮度为 15。**主手、副手均生效**；两手持有不同怪物诱饵时，各自吸引对应怪物。
+
+每盏强化诱饵灯**只能再添加一次怪物掉落物**，不能叠加或更换诱饵。名称括号内显示已添加的材料；放置、正常拆下及保存重进后都保留该类型。
+
+| 加入的掉落物 | 额外吸引的怪物 |
+| --- | --- |
+| 腐肉 | 僵尸、尸壳、溺尸、僵尸玩家 |
+| 骨头 | 骷髅、流浪者、沼骸、凋灵骷髅 |
+| 线 | 蜘蛛、洞穴蜘蛛 |
+| 火药 | 苦力怕 |
+| 末影珍珠 | 末影人 |
+| 黏液球 | 史莱姆 |
+| 岩浆膏 | 岩浆怪 |
+| 烈焰棒 | 烈焰人 |
+| 旋风棒 | 旋风人 |
+| 恶魂之泪 | 恶魂 |
+| 海晶碎片 | 守卫者、远古守卫者 |
+
+受诱饵吸引的怪物会优先靠近灯，并暂时变为中立，玩家靠近也不会被主动攻击。**一旦遭到攻击，怪物会无视诱饵，优先反击攻击者**；换灯、收起后重新拿出或使用另一盏灯都不能中断反击。
+
+反击持续到攻击者死亡、离开当前维度或距离超过 **64 格**，之后才允许重新受诱饵吸引。近战和由攻击者发射的投射物造成的伤害均可触发反击；摔落等没有攻击者的环境伤害不会让怪物迁怒玩家。
+
+诱饵只吸引已有怪物，不生成或驯服怪物。收起灯、拆除放置的灯或离开 24 格范围后，未被激怒的怪物恢复原本行为。墙壁、高差和水陆环境会影响怪物能否到达。
 
 ## 安装
 
@@ -64,26 +100,41 @@ blender --background --factory-startup --python tools/generate_crystal_frog_mode
 
 将模组 JAR 与 Fabric API 放入客户端的 `mods` 目录；多人游戏时服务端也需要安装。构建产物中的 `-sources.jar` 是源码包，不用于安装。
 
-## 命令
+## 管理员命令
+
+获取四种生物的刷怪蛋：
 
 ```mcfunction
 /give @s uncannyencounters:cave_angler_spawn_egg
-/summon uncannyencounters:cave_angler ~ ~2 ~
+/give @s uncannyencounters:zombie_player_spawn_egg
+/give @s uncannyencounters:crystal_frog_spawn_egg
+/give @s uncannyencounters:light_moth_spawn_egg
 ```
 
-洞穴垂钓者会寻找上方 32 格内可附着的坚实表面。建议测试区域从地面到天花板至少高 7 格。
-
-僵尸玩家测试：
+直接召唤生物：
 
 ```mcfunction
-/give @s uncannyencounters:zombie_player_spawn_egg
+/summon uncannyencounters:cave_angler ~ ~2 ~
 /summon uncannyencounters:zombie_player ~ ~ ~
 /summon uncannyencounters:zombie_player ~ ~ ~ {Evolved:1b}
+/summon uncannyencounters:crystal_frog ~ ~ ~
+/summon uncannyencounters:light_moth ~ ~1 ~
 ```
 
-玩家使用刷怪蛋时会继承使用者皮肤，并按其进化计数决定版本；测试生成的僵尸不占死亡生成名额。直接使用 `/summon` 时没有玩家身份，使用默认皮肤。
+洞穴垂钓者需要上方 32 格内有可附着的坚实表面。僵尸玩家刷怪蛋会继承使用者皮肤，并按其进化计数决定版本；刷怪蛋生成的僵尸不占死亡生成名额。直接召唤的僵尸没有玩家身份，使用默认皮肤。
 
-游戏规则与管理员命令：
+获取诱饵灯与材料，例如添加腐肉的强化诱饵灯：
+
+```mcfunction
+/give @s uncannyencounters:moth_lure
+/give @s uncannyencounters:enhanced_moth_lure
+/give @s uncannyencounters:enhanced_moth_lure_rotten_flesh
+/give @s uncannyencounters:moth_scale_dust 16
+/give @s uncannyencounters:viscous_amethyst 8
+/give @s uncannyencounters:activated_amethyst 16
+```
+
+僵尸玩家规则与计数管理：
 
 ```mcfunction
 /gamerule uncannyencounters:zombie_player_spawning false
@@ -94,75 +145,6 @@ blender --background --factory-startup --python tools/generate_crystal_frog_mode
 ```
 
 生成和进化规则默认均开启，进化阈值最小为 1。`defeats` 查询计数，`reset` 清空计数；进化规则与计数决定后续生成版本。
-
-水晶青蛙测试：
-
-```mcfunction
-/give @s uncannyencounters:crystal_frog_spawn_egg
-/summon uncannyencounters:crystal_frog ~ ~ ~
-/give @s uncannyencounters:viscous_amethyst 8
-/give @s uncannyencounters:activated_amethyst 16
-```
-
-建议在生存模式依次测试普通挥击、疾跑近战、长矛冲刺、垂直下落重锤与射箭，观察双方血量。再分别将青蛙剩余生命控制在 10 点及以下，检查反击 / 逃离切换和击退；最后测试合成、驯服、空手坐下 / 跟随、主人攻击，以及保存重进后的状态。视觉、跳跃碰撞、游泳上岸和自然生成密度需游戏内验收。
-
-## 构建
-
-项目使用 Gradle Wrapper，构建前请确认 `JAVA_HOME` 指向 JDK 25 或更新版本；无需单独安装 Gradle。当前依赖配置：
-
-| 组件 | 版本 |
-| --- | --- |
-| Minecraft | 26.3 |
-| Fabric Loader | 0.19.5 |
-| Fabric API | 0.161.0+26.3 |
-| Fabric Loom | 1.18-SNAPSHOT |
-| Gradle Wrapper | 9.7.1 |
-| Java 编译目标 | 25 |
-
-```shell
-./gradlew assemble
-```
-
-Windows：
-
-```powershell
-.\gradlew.bat assemble
-```
-
-构建产物位于 `build/libs`。
-
-仅在改动涉及现有游戏测试代码或需要与 CI 一致的编译检查时，使用：
-
-```powershell
-.\gradlew.bat assemble compileGametestJava
-```
-
-该命令打包模组并编译 GameTest 代码，不启动游戏或执行 GameTest。仓库 CI 使用相同任务。游戏内交互、视觉和端到端验收由维护者手动完成，编译成功不代表这些行为已验证。
-
-## 项目结构与开发约定
-
-| 路径 | 用途 |
-| --- | --- |
-| `src/main/java/.../UncannyEncounters.java` | 公共初始化入口 |
-| `src/main/java/.../entity/` | 实体、属性、刷怪蛋与生成注册 |
-| `src/main/java/.../entity/zombieplayer/` | 死亡生成、持久化、自定义寻路、移动、战斗与临时方块恢复 |
-| `src/main/java/.../entity/crystalfrog/` | 水晶青蛙的移动、反击、逃离、跟随和速度判定 |
-| `src/main/java/.../item/` | 粘稠紫水晶与活化紫水晶注册 |
-| `src/main/java/.../block/` | 僵尸搭建方块，无对应物品 |
-| `src/client/java/.../client/` | 客户端初始化、模型、渲染器与皮肤处理 |
-| `src/main/resources/assets/uncannyencounters/` | 中英文名称、模型、贴图和物品外观定义 |
-| `src/main/resources/data/` | 战利品表、合成配方、配方解锁、伤害类型与标签 |
-| `src/gametest/` | 洞穴垂钓者游戏测试与水晶青蛙伤害 / 反击规则测试 |
-| `tools/` | 模型生成、预览脚本，以及僵尸玩家与水晶青蛙离线逻辑检查 |
-| `reference/low_poly/` | 已纳入版本控制的 Blockbench 模型与几何数据 |
-
-表中的 Java 路径省略了包目录 `com/ignilumen/uncannyencounters`。原始参考素材和 `docs/` 下的本地设计记录被 Git 忽略，克隆仓库后不一定存在。
-
-- 公共逻辑和客户端代码采用独立 source set。伤害、AI、生成与持久化在服务端处理，客户端负责同步状态的显示和动画。
-- 使用 Minecraft 原生 Java 实体模型与渲染器，当前没有第三方动画库或 Mixin 配置。
-- **修改前先核对实际 Minecraft 26.3 / Fabric 依赖源码。** 不直接套用旧版本教程中的 API 名称和签名。本项目已使用 `Identifier`、`EntityTypes`、`ValueInput` / `ValueOutput`、`SubmitNodeCollector`、`CreativeModeTabEvents` 和 `ModelLayerRegistry` 等接口。
-- Loom 缓存中的 `*-sources.jar` 可用于核对游戏源码；如本机尚未生成，可运行 `genSources`。新增生物还需同步处理注册、属性、客户端渲染、语言、刷怪蛋及掉落资源。
-- 只执行与当前改动直接相关的检查；只有获得维护者授权后才创建 Git 提交。
 
 ## License
 

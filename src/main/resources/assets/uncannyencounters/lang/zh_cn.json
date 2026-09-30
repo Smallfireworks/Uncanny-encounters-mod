@@ -27,5 +27,16 @@
   "block.uncannyencounters.enhanced_moth_lure": "强化诱饵灯",
   "block.uncannyencounters.dimmed_torch": "熄灭的火把",
   "block.uncannyencounters.dimmed_wall_torch": "熄灭的火把",
-  "block.uncannyencounters.dimmed_lantern": "熄灭的灯笼"
+  "block.uncannyencounters.dimmed_lantern": "熄灭的灯笼",
+  "block.uncannyencounters.enhanced_moth_lure_rotten_flesh": "强化诱饵灯（腐肉）",
+  "block.uncannyencounters.enhanced_moth_lure_bone": "强化诱饵灯（骨头）",
+  "block.uncannyencounters.enhanced_moth_lure_string": "强化诱饵灯（线）",
+  "block.uncannyencounters.enhanced_moth_lure_gunpowder": "强化诱饵灯（火药）",
+  "block.uncannyencounters.enhanced_moth_lure_ender_pearl": "强化诱饵灯（末影珍珠）",
+  "block.uncannyencounters.enhanced_moth_lure_slime_ball": "强化诱饵灯（黏液球）",
+  "block.uncannyencounters.enhanced_moth_lure_magma_cream": "强化诱饵灯（岩浆膏）",
+  "block.uncannyencounters.enhanced_moth_lure_blaze_rod": "强化诱饵灯（烈焰棒）",
+  "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "强化诱饵灯（旋风棒）",
+  "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "强化诱饵灯（恶魂之泪）",
+  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "强化诱饵灯（海晶碎片）"
 }

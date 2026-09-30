@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "uncannyencounters:enhanced_moth_lure",
+    "minecraft:gunpowder"
+  ],
+  "result": {
+    "id": "uncannyencounters:enhanced_moth_lure_gunpowder",
+    "count": 1
+  }
+}

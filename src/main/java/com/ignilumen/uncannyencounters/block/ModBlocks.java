@@ -1,6 +1,9 @@
 package com.ignilumen.uncannyencounters.block;
 
 import com.ignilumen.uncannyencounters.UncannyEncounters;
+import com.ignilumen.uncannyencounters.entity.lightmoth.LureBait;
+import java.util.EnumMap;
+import java.util.Map;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -19,6 +22,14 @@ public final class ModBlocks {
     public static final Block DIMMED_LANTERN = registerLight("dimmed_lantern", Blocks.LANTERN, DimmedLights.Lantern::new, 0);
     public static final Block MOTH_LURE = registerLight("moth_lure", Blocks.LANTERN, LanternBlock::new, 15);
     public static final Block ENHANCED_MOTH_LURE = registerLight("enhanced_moth_lure", Blocks.LANTERN, LanternBlock::new, 15);
+    public static final Map<LureBait, Block> BAITED_LURES = registerBaitedLures();
+
+    private static Map<LureBait, Block> registerBaitedLures() {
+        Map<LureBait, Block> blocks = new EnumMap<>(LureBait.class);
+        for (LureBait bait : LureBait.values()) blocks.put(bait,
+                registerLight(bait.blockId(), Blocks.LANTERN, properties -> new BaitedLureBlock(properties, bait), 15));
+        return Map.copyOf(blocks);
+    }
 
     private static Block registerLight(String name, Block original,
                                        java.util.function.Function<BlockBehaviour.Properties, Block> factory, int light) {

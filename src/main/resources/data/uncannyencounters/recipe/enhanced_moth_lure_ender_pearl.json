@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "uncannyencounters:enhanced_moth_lure",
+    "minecraft:ender_pearl"
+  ],
+  "result": {
+    "id": "uncannyencounters:enhanced_moth_lure_ender_pearl",
+    "count": 1
+  }
+}

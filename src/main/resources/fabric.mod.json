@@ -3,10 +3,11 @@
 	"id": "uncannyencounters",
 	"version": "${version}",
 	"name": "Uncanny Encounters",
-	"description": "Uncanny creatures: the ceiling-dwelling Cave Angler, Zombie Player, and tamable Crystal Frog.",
+	"description": "Uncanny creatures: Cave Angler, Zombie Player, tamable Crystal Frog, and Light Moth. Craft lure lanterns to attract moths and monsters.",
 	"license": "LGPL-3.0-only",
 	"icon": "assets/uncannyencounters/icon.png",
 	"environment": "*",
+	"mixins": ["uncannyencounters.mixins.json"],
 	"entrypoints": {
 		"main": [
 			"com.ignilumen.uncannyencounters.UncannyEncounters"

@@ -27,5 +27,16 @@
   "block.uncannyencounters.enhanced_moth_lure": "Enhanced Lure Lantern",
   "block.uncannyencounters.dimmed_torch": "Extinguished Torch",
   "block.uncannyencounters.dimmed_wall_torch": "Extinguished Torch",
-  "block.uncannyencounters.dimmed_lantern": "Extinguished Lantern"
+  "block.uncannyencounters.dimmed_lantern": "Extinguished Lantern",
+  "block.uncannyencounters.enhanced_moth_lure_rotten_flesh": "Enhanced Lure Lantern (Rotten Flesh)",
+  "block.uncannyencounters.enhanced_moth_lure_bone": "Enhanced Lure Lantern (Bone)",
+  "block.uncannyencounters.enhanced_moth_lure_string": "Enhanced Lure Lantern (String)",
+  "block.uncannyencounters.enhanced_moth_lure_gunpowder": "Enhanced Lure Lantern (Gunpowder)",
+  "block.uncannyencounters.enhanced_moth_lure_ender_pearl": "Enhanced Lure Lantern (Ender Pearl)",
+  "block.uncannyencounters.enhanced_moth_lure_slime_ball": "Enhanced Lure Lantern (Slimeball)",
+  "block.uncannyencounters.enhanced_moth_lure_magma_cream": "Enhanced Lure Lantern (Magma Cream)",
+  "block.uncannyencounters.enhanced_moth_lure_blaze_rod": "Enhanced Lure Lantern (Blaze Rod)",
+  "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "Enhanced Lure Lantern (Breeze Rod)",
+  "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "Enhanced Lure Lantern (Ghast Tear)",
+  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "Enhanced Lure Lantern (Prismarine Shard)"
 }

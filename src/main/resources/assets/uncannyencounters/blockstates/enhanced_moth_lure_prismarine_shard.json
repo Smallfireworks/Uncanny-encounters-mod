@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "hanging=false": {
+      "model": "uncannyencounters:block/enhanced_moth_lure"
+    },
+    "hanging=true": {
+      "model": "uncannyencounters:block/enhanced_moth_lure_hanging"
+    }
+  }
+}

@@ -1,5 +1,7 @@
 package com.ignilumen.uncannyencounters.entity.zombieplayer;
 
+import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
+
 import com.ignilumen.uncannyencounters.entity.ZombiePlayer;
 import it.unimi.dsi.fastutil.objects.Object2LongOpenHashMap;
 import java.util.ArrayDeque;
@@ -199,19 +201,26 @@ public final class ZombiePlayerBrain {
         long now = level.getGameTime();
         if (attackCooldown > 0) attackCooldown--;
         if (duelPause > 0) duelPause--;
+        LivingEntity provoker = MonsterLures.retaliationTarget(mob);
         LivingEntity target = mob.getTarget();
         if (!validTarget(target)) { mob.setTarget(null); target = null; }
         if (--targetDelay <= 0) {
             targetDelay = 10;
             ignored.object2LongEntrySet().removeIf(entry -> entry.getLongValue() <= now);
             LivingEntity attacker = mob.getLastHurtByMob();
-            if (validTarget(attacker) && mob.tickCount - mob.getLastHurtByMobTimestamp() < 200) target = attacker;
+            if (validTarget(provoker)) target = provoker;
+            else if (validTarget(attacker) && mob.tickCount - mob.getLastHurtByMobTimestamp() < 200) target = attacker;
             else if (target == null) target = level.players().stream().filter(this::validTarget)
                     .filter(player -> mob.distanceToSqr(player) <= 40 * 40)
                     .filter(player -> !mob.evolved() || inTerritory(player.position()) && mob.getSensing().hasLineOfSight(player))
                     .filter(player -> !ignored.containsKey(player.getUUID()) || mob.getSensing().hasLineOfSight(player))
                     .min(Comparator.comparingDouble(mob::distanceToSqr)).orElse(null);
             mob.setTarget(target);
+        }
+        Vec3 lure = MonsterLures.destination(mob);
+        if (lure != null && !pilot.committed() && !pilot.handlingBlock()) {
+            followLure(level, lure);
+            return;
         }
         if (target != null) {
             boolean visible = mob.getSensing().hasLineOfSight(target);
@@ -242,6 +251,19 @@ public final class ZombiePlayerBrain {
         target = mob.getTarget();
         if (target != null && !pilot.handlingBlock() && !pilot.committed() && !dueling
                 && (!mob.evolved() || mob.getSensing().hasLineOfSight(target))) mob.getLookControl().setLookAt(target, 45, 45);
+    }
+
+    /** Retaliation bypasses this branch completely and uses the normal combat implementation. */
+    private void followLure(ServerLevel level, Vec3 lure) {
+        endDuel();
+        idleTicks = 0;
+        returning = false;
+        roam = searching = null;
+        mob.setAggressive(false);
+        if (mob.isUsingItem()) mob.stopUsingItem();
+        if (mob.distanceToSqr(lure) > 2.25) pilot.follow(new RoutePlanner.Goal(BlockPos.containing(lure), 1, 1), true, false);
+        else pilot.stop(level);
+        pilot.tick(level);
     }
 
     /** Progress means seeing the target, working on a block, or getting closer; its velocity feeds interception. */

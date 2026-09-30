@@ -1,6 +1,8 @@
 package com.ignilumen.uncannyencounters.entity;
 
 import com.ignilumen.uncannyencounters.block.ModBlocks;
+import com.ignilumen.uncannyencounters.block.BaitedLureBlock;
+import com.ignilumen.uncannyencounters.entity.lightmoth.LureBait;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MothLights;
 import com.ignilumen.uncannyencounters.item.ModItems;
 import java.util.UUID;
@@ -182,12 +184,12 @@ public final class LightMoth extends PathfinderMob {
         return hit.getType()==HitResult.Type.MISS || hit.getBlockPos().equals(pos);
     }
     private static int itemLureRange(ItemStack item) {
-        if (item.is(ModItems.ENHANCED_MOTH_LURE)) return ENHANCED_LURE_RANGE;
+        if (item.is(ModItems.ENHANCED_MOTH_LURE) || LureBait.from(item) != null) return ENHANCED_LURE_RANGE;
         return item.is(ModItems.MOTH_LURE) ? LURE_RANGE : 0;
     }
     private static int lureRange(Player player) { return Math.max(itemLureRange(player.getMainHandItem()),itemLureRange(player.getOffhandItem())); }
     private static int blockLureRange(BlockState state) {
-        if (state.is(ModBlocks.ENHANCED_MOTH_LURE)) return ENHANCED_LURE_RANGE;
+        if (state.is(ModBlocks.ENHANCED_MOTH_LURE) || state.getBlock() instanceof BaitedLureBlock) return ENHANCED_LURE_RANGE;
         return state.is(ModBlocks.MOTH_LURE) ? LURE_RANGE : 0;
     }
     private void chooseHandLure(ServerLevel level) {
