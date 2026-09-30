@@ -15,6 +15,12 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public final class ModEntities {
+    public static final EntityType<FrogKeeper> FROG_KEEPER = register("frog_keeper",
+            EntityType.Builder.of(FrogKeeper::new, MobCategory.CREATURE)
+                    .sized(0.65F, 1.95F).eyeHeight(1.75F).clientTrackingRange(10).updateInterval(1));
+    public static final Item FROG_KEEPER_SPAWN_EGG = Registry.register(BuiltInRegistries.ITEM,
+            UncannyEncounters.id("frog_keeper_spawn_egg"), new SpawnEggItem(new Item.Properties()
+                    .setId(ResourceKey.create(Registries.ITEM, UncannyEncounters.id("frog_keeper_spawn_egg"))).spawnEgg(FROG_KEEPER)));
     public static final EntityType<CrystalSlimeShot> CRYSTAL_SLIME_SHOT = register("crystal_slime_shot",
             EntityType.Builder.<CrystalSlimeShot>of(CrystalSlimeShot::new, MobCategory.MISC)
                     .sized(0.25F, 0.25F).clientTrackingRange(6).updateInterval(1).noSave().noSummon());
@@ -56,6 +62,7 @@ public final class ModEntities {
     }
 
     public static void initialize() {
+        FabricDefaultAttributeRegistry.register(FROG_KEEPER, FrogKeeper.createAttributes());
         FabricDefaultAttributeRegistry.register(LIGHT_MOTH, LightMoth.createAttributes());
         SpawnPlacements.register(LIGHT_MOTH,SpawnPlacementTypes.NO_RESTRICTIONS,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES,LightMoth::canSpawn);
@@ -75,6 +82,7 @@ public final class ModEntities {
                     entries.accept(CAVE_ANGLER_SPAWN_EGG);
                     entries.accept(ZOMBIE_PLAYER_SPAWN_EGG);
                     entries.accept(CRYSTAL_FROG_SPAWN_EGG);
+                    entries.accept(FROG_KEEPER_SPAWN_EGG);
                 });
     }
 

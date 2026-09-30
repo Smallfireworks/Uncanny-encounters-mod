@@ -1,0 +1,31 @@
+// .\gradlew.bat -I tools/checks/frog-genetics.gradle frogGeneticsCheck
+// Lightweight checks only: this does not launch a client, server or GameTest.
+allprojects {
+    afterEvaluate {
+        def mainSources = sourceSets.main
+        tasks.register('compileFrogGeneticsChecks', JavaCompile) {
+            dependsOn tasks.named('classes')
+            source = files('tools/checks/FrogGeneticsChecks.java')
+            classpath = mainSources.runtimeClasspath
+            destinationDirectory = layout.buildDirectory.dir('frog-genetics-checks')
+            options.release = 25
+        }
+        tasks.register('frogGeneticsCheck', JavaExec) {
+            dependsOn tasks.named('compileFrogGeneticsChecks')
+            classpath = files(layout.buildDirectory.dir('frog-genetics-checks')) + mainSources.runtimeClasspath
+            mainClass = 'com.ignilumen.uncannyencounters.entity.crystalfrog.FrogGeneticsChecks'
+        }
+        tasks.register('compileFrogKeeperLedgerChecks', JavaCompile) {
+            dependsOn tasks.named('classes')
+            source = files('tools/checks/FrogKeeperLedgerChecks.java')
+            classpath = mainSources.runtimeClasspath
+            destinationDirectory = layout.buildDirectory.dir('frog-keeper-ledger-checks')
+            options.release = 25
+        }
+        tasks.register('frogKeeperLedgerCheck', JavaExec) {
+            dependsOn tasks.named('compileFrogKeeperLedgerChecks')
+            classpath = files(layout.buildDirectory.dir('frog-keeper-ledger-checks')) + mainSources.runtimeClasspath
+            mainClass = 'com.ignilumen.uncannyencounters.entity.frogkeeper.FrogKeeperLedgerChecks'
+        }
+    }
+}

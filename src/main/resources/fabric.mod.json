@@ -3,7 +3,7 @@
 	"id": "uncannyencounters",
 	"version": "${version}",
 	"name": "Uncanny Encounters",
-	"description": "Uncanny creatures: Cave Angler, Zombie Player, tamable Crystal Frog, and Light Moth. Craft lure lanterns to attract moths and monsters.",
+	"description": "Encounter uncanny creatures, breed Crystal Frogs with inherited traits and rare mutations, and challenge the Frog Keeper in amethyst courts. Craft lure lanterns to attract moths and monsters.",
 	"license": "LGPL-3.0-only",
 	"icon": "assets/uncannyencounters/icon.png",
 	"environment": "*",

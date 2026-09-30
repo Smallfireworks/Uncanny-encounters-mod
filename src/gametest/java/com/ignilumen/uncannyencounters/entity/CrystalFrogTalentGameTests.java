@@ -89,7 +89,8 @@ public final class CrystalFrogTalentGameTests {
         for (int roll = 0; roll < 80; roll++) counts.merge(CrystalFrogTalent.fromRoll(roll), 1, Integer::sum);
         test.assertTrue(counts.get(CrystalFrogTalent.NONE) == 76, "95 percent of frogs must have no talent");
         for (CrystalFrogTalent talent : CrystalFrogTalent.values()) if (talent != CrystalFrogTalent.NONE)
-            test.assertTrue(counts.get(talent) == 1, "Each rare talent must occupy exactly 1.25 percent");
+            test.assertTrue(counts.getOrDefault(talent, 0) == (talent.advanced() || talent == CrystalFrogTalent.FROG_KING ? 0 : 1),
+                    "Wild rolls must only include the four original talents");
         test.succeed();
     }
 

@@ -21,16 +21,22 @@ import org.jspecify.annotations.Nullable;
 public final class CrystalSlimeShot extends ThrowableItemProjectile {
     private @Nullable FrogTalentAttack attack;
     private Vec3 origin = Vec3.ZERO;
+    private float damage = 2;
 
     public CrystalSlimeShot(EntityType<? extends CrystalSlimeShot> type, Level level) { super(type, level); }
 
     public CrystalSlimeShot(FrogTalentAttack attack) {
+        this(attack, 0, attack.frog().talents().damage(2));
+    }
+
+    public CrystalSlimeShot(FrogTalentAttack attack, float yawOffset, float damage) {
         this(ModEntities.CRYSTAL_SLIME_SHOT, attack.frog().level());
         this.attack = attack;
+        this.damage = damage;
         setOwner(attack.frog());
         setPos(attack.frog().getX(), attack.frog().getEyeY(), attack.frog().getZ());
         origin = position();
-        Vec3 aim = attack.target().getBoundingBox().getCenter().subtract(origin);
+        Vec3 aim = attack.target().getBoundingBox().getCenter().subtract(origin).yRot(yawOffset * (float)Math.PI / 180);
         double flightTime = aim.horizontalDistance() / 0.65;
         shoot(aim.x, aim.y + 0.5 * getDefaultGravity() * flightTime * flightTime, aim.z, 0.65F, 1.0F);
     }
@@ -66,7 +72,7 @@ public final class CrystalSlimeShot extends ThrowableItemProjectile {
         if (attack == null || hit.getEntity() != attack.target() || !attack.valid()) return;
         boolean guarded = hit.getEntity() instanceof CrystalFrog frog
                 && frog.duelCombat().canGuardFrom(attack.frog(), incomingPoint(frog));
-        if (attack.hurt(this, 2) && !guarded && attack.valid()) CrystalFrogTalents.applySlime(attack);
+        if (attack.hurt(this, damage) && !guarded && attack.valid()) CrystalFrogTalents.applySlime(attack);
     }
 
     @Override protected void onHitBlock(BlockHitResult hit) {}

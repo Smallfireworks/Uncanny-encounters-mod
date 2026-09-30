@@ -11,7 +11,7 @@ import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuels;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalents;
 import com.ignilumen.uncannyencounters.effect.FrogEffects;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.GeodeFrogSpawns;
-import com.ignilumen.uncannyencounters.effect.FrogEffects;
+import com.ignilumen.uncannyencounters.worldgen.FrogCourtStructure;
 
 import net.minecraft.resources.Identifier;
 
@@ -33,10 +33,10 @@ public class UncannyEncounters implements ModInitializer {
 		// Proceed with mild caution.
 
 		FrogEffects.initialize();
-		FrogEffects.initialize();
 		ModBlocks.initialize();
 		ModItems.initialize();
 		ModEntities.initialize();
+		FrogCourtStructure.initialize();
 		GeodeFrogSpawns.initialize();
 		ZombiePlayerSpawns.initialize();
 		MothLights.initialize();

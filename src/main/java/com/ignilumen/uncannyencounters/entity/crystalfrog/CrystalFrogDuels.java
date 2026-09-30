@@ -1,6 +1,8 @@
 package com.ignilumen.uncannyencounters.entity.crystalfrog;
 
 import com.ignilumen.uncannyencounters.entity.CrystalFrog;
+import com.ignilumen.uncannyencounters.entity.FrogKeeper;
+import net.minecraft.world.entity.LivingEntity;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -97,11 +99,32 @@ public final class CrystalFrogDuels {
     }
 
     private static boolean ready(CrystalFrog frog) {
-        return frog.isAlive() && frog.isTame() && !frog.isDueling() && !frog.isNoAi()
+        return frog.isAlive() && !frog.isBaby() && !frog.isInLove() && frog.isTame() && !frog.isDueling() && !frog.isNoAi()
                 && !frog.isPassenger() && !frog.isLeashed() && !frog.isFrightened() && !frog.wantsRetaliation()
                 && frog.getHealth() >= frog.getMaxHealth()
                 && frog.getOwner() instanceof Player owner && owner.isAlive() && !owner.isSpectator()
                 && owner.level() == frog.level() && owner.distanceToSqr(frog) <= 32 * 32;
+    }
+
+    /** The owner's stick selection is the explicit consent for a single NPC challenge. */
+    public static void challengeKeeper(Player player, FrogKeeper keeper, CrystalFrog champion) {
+        if (!(player.level() instanceof ServerLevel level) || keeper.level() != level || keeper.challengeDefeated()) return;
+        if (champion.isDueling()) { tell(player, "busy"); return; }
+        Selection selection = SELECTED.get(player.getUUID());
+        CrystalFrog challenger = selection != null && selection.expires > level.getServer().getTickCount()
+                && selection.dimension.equals(level.dimension()) ? find(level, selection.frog) : null;
+        if (challenger == null || !challenger.isOwnedBy(player)) { FrogKeeper.tell(player, "instructions"); return; }
+        if (!ready(challenger) || !champion.isAlive() || champion.isNoAi() || champion.isPassenger() || champion.isLeashed()
+                || !champion.isOwnedBy(keeper) || challenger.distanceToSqr(champion) > 16 * 16
+                || !keeper.insideArena(challenger) || !keeper.insideArena(champion)) { tell(player, "not_ready"); return; }
+        SELECTED.remove(player.getUUID());
+        CHALLENGES.values().removeIf(c -> c.first.equals(challenger.getUUID()) || c.second.equals(challenger.getUUID()));
+        // Each attempt starts fresh. The player's frog must already have been healed by the player.
+        champion.setHealth(champion.getMaxHealth());
+        Match match = new Match(challenger, champion);
+        challenger.beginDuel(match, champion);
+        champion.beginDuel(match, challenger);
+        match.tellOwners("started");
     }
 
     private static boolean canStart(CrystalFrog first, CrystalFrog second) {
@@ -128,15 +151,15 @@ public final class CrystalFrogDuels {
 
     public static final class Match {
         private final CrystalFrog first, second;
-        private final Player firstOwner, secondOwner;
+        private final LivingEntity firstOwner, secondOwner;
         private final int expires;
         private boolean ended;
 
         private Match(CrystalFrog first, CrystalFrog second) {
             this.first = first;
             this.second = second;
-            firstOwner = (Player) first.getOwner();
-            secondOwner = (Player) second.getOwner();
+            firstOwner = first.getOwner();
+            secondOwner = second.getOwner();
             expires = ((ServerLevel) first.level()).getServer().getTickCount() + MATCH_TICKS;
         }
 
@@ -148,13 +171,16 @@ public final class CrystalFrogDuels {
             if (ended) return;
             if (!present(first, firstOwner) || !present(second, secondOwner) || first.level() != second.level()
                     || first.distanceToSqr(second) > 24 * 24) { cancel("interrupted"); return; }
+            if (secondOwner instanceof FrogKeeper keeper && (!keeper.insideArena(first) || !keeper.insideArena(second))) {
+                cancel("interrupted"); return;
+            }
             if (((ServerLevel) first.level()).getServer().getTickCount() >= expires) { cancel("timeout"); return; }
             if (first.getHealth() <= first.getMaxHealth() * DEFEAT_FRACTION) defeated(first);
             else if (second.getHealth() <= second.getMaxHealth() * DEFEAT_FRACTION) defeated(second);
         }
 
-        private boolean present(CrystalFrog frog, Player owner) {
-            return frog.isAlive() && !frog.isNoAi() && !frog.isPassenger() && !frog.isLeashed()
+        private boolean present(CrystalFrog frog, LivingEntity owner) {
+            return frog.isAlive() && !frog.isRemoved() && !frog.isNoAi() && !frog.isPassenger() && !frog.isLeashed()
                     && owner.isAlive() && !owner.isRemoved() && !owner.isSpectator() && frog.isOwnedBy(owner)
                     && owner.level() == frog.level() && owner.distanceToSqr(frog) <= 32 * 32;
         }
@@ -176,11 +202,15 @@ public final class CrystalFrogDuels {
             ended = true;
             first.finishDuel(this, winner == first);
             second.finishDuel(this, winner == second);
+            if (winner == first && secondOwner instanceof FrogKeeper keeper) {
+                keeper.wonChallenge();
+                if (firstOwner instanceof Player player) FrogKeeper.tell(player, "victory");
+            }
         }
 
         private void tellOwners(String key, Object... arguments) {
-            tell(firstOwner, key, arguments);
-            if (secondOwner != firstOwner) tell(secondOwner, key, arguments);
+            if (firstOwner instanceof Player player) tell(player, key, arguments);
+            if (secondOwner != firstOwner && secondOwner instanceof Player player) tell(player, key, arguments);
         }
     }
 

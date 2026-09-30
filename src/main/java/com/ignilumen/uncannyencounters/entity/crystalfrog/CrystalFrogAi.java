@@ -2,6 +2,7 @@ package com.ignilumen.uncannyencounters.entity.crystalfrog;
 
 import com.ignilumen.uncannyencounters.entity.CrystalFrog;
 import com.ignilumen.uncannyencounters.item.ModItems;
+import com.ignilumen.uncannyencounters.entity.frogkeeper.ReturnToFrogCourtGoal;
 import java.util.EnumSet;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.goal.*;
@@ -13,6 +14,15 @@ import org.jspecify.annotations.Nullable;
 public final class CrystalFrogAi {
     public static void register(CrystalFrog frog, GoalSelector goals) {
         goals.addGoal(0, new Flee(frog));
+        goals.addGoal(0, new Goal() {
+            { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
+            @Override public boolean canUse() { return frog.swallow().canStart(); }
+            @Override public boolean canContinueToUse() { return frog.swallow().active(); }
+            @Override public boolean requiresUpdateEveryTick() { return true; }
+            @Override public void start() { frog.swallow().start(); }
+            @Override public void tick() { frog.swallow().tick(); }
+            @Override public void stop() { frog.swallow().clear(); }
+        });
         goals.addGoal(0, new Goal() {
             { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
             @Override public boolean canUse() { return frog.talents().canStartSpit(); }
@@ -45,13 +55,19 @@ public final class CrystalFrogAi {
             @Override public boolean canContinueToUse() { return canUse(); }
         });
         goals.addGoal(3, new FollowOwner(frog));
+        goals.addGoal(3, new ReturnToFrogCourtGoal(frog, frog::keeperId));
+        goals.addGoal(2, new BreedGoal(frog, 1) {
+            @Override public boolean canUse() { return frog.breedingAvailable() && super.canUse(); }
+            @Override public boolean canContinueToUse() { return frog.breedingAvailable() && super.canContinueToUse(); }
+        });
+        goals.addGoal(3, new FollowParentGoal(frog, 1));
         goals.addGoal(4, new TemptGoal(frog, 1, stack -> stack.is(ModItems.ACTIVATED_AMETHYST), false) {
             @Override public boolean canUse() { return !frog.isTame() && super.canUse(); }
             @Override public boolean canContinueToUse() { return !frog.isTame() && super.canContinueToUse(); }
         });
         goals.addGoal(5, new RandomStrollGoal(frog, 1, 35) {
-            @Override public boolean canUse() { return !frog.isOrderedToSit() && !frog.isDueling() && super.canUse(); }
-            @Override public boolean canContinueToUse() { return !frog.isOrderedToSit() && !frog.isDueling() && super.canContinueToUse(); }
+            @Override public boolean canUse() { return !frog.isKeeperFrog() && !frog.isOrderedToSit() && !frog.isDueling() && super.canUse(); }
+            @Override public boolean canContinueToUse() { return !frog.isKeeperFrog() && !frog.isOrderedToSit() && !frog.isDueling() && super.canContinueToUse(); }
         });
         goals.addGoal(6, new LookAtPlayerGoal(frog, Player.class, 6));
         goals.addGoal(7, new RandomLookAroundGoal(frog));
@@ -92,7 +108,8 @@ public final class CrystalFrogAi {
             return validOwner() && frog.distanceToSqr(owner) > 16;
         }
         private boolean validOwner() {
-            return owner != null && owner.isAlive() && owner.level() == frog.level() && !frog.isDueling() && !frog.unableToMoveToOwner();
+            return !frog.isKeeperFrog() && owner != null && owner.isAlive() && owner.level() == frog.level() && !frog.isDueling()
+                    && !frog.isInLove() && !frog.unableToMoveToOwner();
         }
         @Override public boolean canContinueToUse() { return validOwner() && frog.distanceToSqr(owner) > 4; }
         @Override public void start() { pathCooldown = 0; }

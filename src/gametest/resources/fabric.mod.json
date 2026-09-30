@@ -5,8 +5,20 @@
   "name": "Uncanny Encounters Tests",
   "environment": "*",
   "entrypoints": {
-    "fabric-gametest": ["com.ignilumen.uncannyencounters.CaveAnglerGameTests", "com.ignilumen.uncannyencounters.CrystalFrogGameTests", "com.ignilumen.uncannyencounters.LureGameTests", "com.ignilumen.uncannyencounters.entity.CrystalFrogTalentGameTests", "com.ignilumen.uncannyencounters.entity.crystalfrog.GeodeFrogGameTests"],
-    "fabric-client-gametest": ["com.ignilumen.uncannyencounters.CaveAnglerClientTest"]
+    "fabric-gametest": [
+      "com.ignilumen.uncannyencounters.CaveAnglerGameTests",
+      "com.ignilumen.uncannyencounters.CrystalFrogGameTests",
+      "com.ignilumen.uncannyencounters.LureGameTests",
+      "com.ignilumen.uncannyencounters.entity.CrystalFrogTalentGameTests",
+      "com.ignilumen.uncannyencounters.entity.crystalfrog.GeodeFrogGameTests",
+      "com.ignilumen.uncannyencounters.entity.FrogBreedingGameTests"
+    ],
+    "fabric-client-gametest": [
+      "com.ignilumen.uncannyencounters.CaveAnglerClientTest"
+    ]
   },
-  "depends": { "uncannyencounters": "*", "fabric-gametest-api-v1": "*" }
+  "depends": {
+    "uncannyencounters": "*",
+    "fabric-gametest-api-v1": "*"
+  }
 }

@@ -17,6 +17,13 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 
 public final class ModBlocks {
+    public static final Block FROG_ALTAR = registerAltar();
+    private static Block registerAltar() {
+        ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, UncannyEncounters.id("frog_altar"));
+        return Registry.register(BuiltInRegistries.BLOCK, key, new FrogAltarBlock(BlockBehaviour.Properties.of()
+                .setId(key).mapColor(MapColor.COLOR_PURPLE).strength(-1, 3600000).sound(SoundType.AMETHYST)
+                .noLootTable().lightLevel(state -> 10).pushReaction(PushReaction.IMMOVEABLE)));
+    }
     public static final Block DIMMED_TORCH = registerLight("dimmed_torch", Blocks.TORCH, DimmedLights.Torch::new, 0);
     public static final Block DIMMED_WALL_TORCH = registerLight("dimmed_wall_torch", Blocks.WALL_TORCH, DimmedLights.WallTorch::new, 0);
     public static final Block DIMMED_LANTERN = registerLight("dimmed_lantern", Blocks.LANTERN, DimmedLights.Lantern::new, 0);

@@ -16,6 +16,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
 
 public final class ModItems {
+    public static final Item FROG_ALTAR = registerBlock("frog_altar", ModBlocks.FROG_ALTAR);
     public static final Item MOTH_SCALE_DUST = register("moth_scale_dust");
     public static final Item MOTH_LURE = registerBlock("moth_lure",ModBlocks.MOTH_LURE);
     public static final Item ENHANCED_MOTH_LURE = registerBlock("enhanced_moth_lure",ModBlocks.ENHANCED_MOTH_LURE);
@@ -44,6 +45,7 @@ public final class ModItems {
             entries.accept(MOTH_SCALE_DUST);
         });
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
+            entries.accept(FROG_ALTAR);
             entries.accept(MOTH_LURE);
             entries.accept(ENHANCED_MOTH_LURE);
             for (LureBait bait : LureBait.values()) entries.accept(BAITED_LURES.get(bait));

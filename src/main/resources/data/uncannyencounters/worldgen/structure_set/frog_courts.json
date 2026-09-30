@@ -1,0 +1,14 @@
+{
+  "structures": [
+    {
+      "structure": "uncannyencounters:frog_court",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "salt": 93742631,
+    "spacing": 48,
+    "separation": 16
+  }
+}
