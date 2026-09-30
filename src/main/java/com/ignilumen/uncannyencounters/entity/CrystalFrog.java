@@ -4,6 +4,10 @@ import com.ignilumen.uncannyencounters.UncannyEncounters;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogAi;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDefense;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuels;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuelCombat;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogCombatAnimation;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogStyle;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalents;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogHopAnimation;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogMoveControl;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogOwnerSupport;
@@ -31,6 +35,7 @@ import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.AgeableMob;
 import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.MoverType;
@@ -61,14 +66,25 @@ public final class CrystalFrog extends TamableAnimal {
     public static final float FEED_HEAL = 4;
     public static final ResourceKey<DamageType> REFLECTION_DAMAGE = ResourceKey.create(
             Registries.DAMAGE_TYPE, UncannyEncounters.id("crystal_reflection"));
+    public static final ResourceKey<DamageType> SLIME_DAMAGE = ResourceKey.create(
+            Registries.DAMAGE_TYPE, UncannyEncounters.id("crystal_slime"));
+    public static final ResourceKey<DamageType> TALENT_BURST_DAMAGE = ResourceKey.create(
+            Registries.DAMAGE_TYPE, UncannyEncounters.id("crystal_burst"));
     public static final TagKey<Block> HABITAT = TagKey.create(Registries.BLOCK, UncannyEncounters.id("crystal_frog_habitat"));
     private static final byte REFLECT_EVENT = 61;
     private static final EntityDataAccessor<Byte> HOP_PHASE = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Byte> DUEL_POSE = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BYTE);
+    private static final EntityDataAccessor<Boolean> TALENT_CASTING = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BOOLEAN);
+    private static final EntityDataAccessor<Boolean> TALENT_SHELL = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BOOLEAN);
     private int responseTicks, reflectionTicks;
     private boolean traitsInitialized;
+    private @Nullable CrystalFrogStyle duelStyle;
     private CrystalFrogDuels.@Nullable Match duel;
     private int victoryTicks;
     private final CrystalFrogHopAnimation hopAnimation = new CrystalFrogHopAnimation();
+    private final CrystalFrogDuelCombat duelCombat = new CrystalFrogDuelCombat(this);
+    private final CrystalFrogCombatAnimation combatAnimation = new CrystalFrogCombatAnimation();
+    private final CrystalFrogTalents talents = new CrystalFrogTalents(this);
     private @Nullable Vec3 threatPosition;
     private @Nullable LivingEntity provoker;
     private final CrystalFrogOwnerSupport ownerSupport = new CrystalFrogOwnerSupport(this);
@@ -96,7 +112,9 @@ public final class CrystalFrog extends TamableAnimal {
     }
 
     private void initializeTraits() {
-        if (traitsInitialized || level().isClientSide()) return;
+        if (level().isClientSide()) return;
+        talents.initializeTalent();
+        if (traitsInitialized) return;
         traitsInitialized = true;
         getAttribute(Attributes.MAX_HEALTH).setBaseValue(MIN_HEALTH + random.nextInt(MAX_HEALTH - MIN_HEALTH + 1));
         getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(MIN_ATTACK + random.nextInt(MAX_ATTACK - MIN_ATTACK + 1));
@@ -107,8 +125,14 @@ public final class CrystalFrog extends TamableAnimal {
         initializeTraits();
         super.addAdditionalSaveData(output);
         output.putBoolean("CrystalFrogTraitsInitialized", traitsInitialized);
+        output.putString("CrystalFrogStyle", duelStyle().id());
+        talents.save(output);
         // Matches do not resume after unloading; a reloaded participant rests safely.
-        if (duel != null) output.putBoolean("Sitting", true);
+        if (duel != null) {
+            output.putBoolean("Sitting", true);
+            output.putFloat("CrystalShellHealth", 0);
+            output.putLong("CrystalShellExpires", 0);
+        }
     }
 
     @Override protected void readAdditionalSaveData(ValueInput input) {
@@ -117,13 +141,19 @@ public final class CrystalFrog extends TamableAnimal {
         // An empty /summon tag is a new frog and still receives individual traits.
         traitsInitialized = input.getBooleanOr("CrystalFrogTraitsInitialized",
                 input.read("Health", Codec.FLOAT).isPresent() || input.childrenList("attributes").isPresent());
+        duelStyle = CrystalFrogStyle.from(input.getStringOr("CrystalFrogStyle", ""), getUUID());
         duel = null;
+        duelCombat.reset();
+        talents.load(input, traitsInitialized);
     }
 
     @Override protected void registerGoals() { CrystalFrogAi.register(this, goalSelector); }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
         builder.define(HOP_PHASE, CrystalFrogHopAnimation.GROUNDED);
+        builder.define(DUEL_POSE, CrystalFrogDuelCombat.NORMAL);
+        builder.define(TALENT_CASTING, false);
+        builder.define(TALENT_SHELL, false);
     }
     @Override protected PathNavigation createNavigation(Level level) { return new AmphibiousPathNavigation(this, level); }
     @Override protected void customServerAiStep(ServerLevel level) {
@@ -167,13 +197,19 @@ public final class CrystalFrog extends TamableAnimal {
 
     @Override public boolean hurtServer(ServerLevel level, DamageSource source, float amount) {
         if (isDeadOrDying() || isInvulnerableTo(level, source)) return false;
+        float previousHealth = getHealth();
         if (duel != null && amount > 0 && Float.isFinite(amount)) {
             CrystalFrogDuels.Match match = duel;
-            if (source.getEntity() instanceof CrystalFrog attacker && source.getDirectEntity() == attacker
+            if (source.getEntity() instanceof CrystalFrog attacker
+                    && (source.getDirectEntity() == attacker || source.getDirectEntity() instanceof CrystalSlimeShot shot && shot.validFor(this))
+                    && attacker.duelMatch() == match
                     && match.opponents(this, attacker)) {
                 float floor = getMaxHealth() * CrystalFrogDuels.DEFEAT_FRACTION;
                 float safeDamage = Math.max(0, getHealth() - floor);
-                boolean hurt = safeDamage > 0 && super.hurtServer(level, source, Math.min(amount, safeDamage));
+                Vec3 incoming = source.getDirectEntity() instanceof CrystalSlimeShot shot ? shot.incomingPoint(this) : attacker.position();
+                float defendedDamage = source.is(TALENT_BURST_DAMAGE) ? amount : duelCombat.defend(attacker, incoming, amount);
+                boolean hurt = safeDamage > 0 && super.hurtServer(level, source, Math.min(defendedDamage, safeDamage));
+                if (hurt) talents.afterHurt(previousHealth);
                 if (getHealth() <= floor + 0.001F) match.defeated(this);
                 return hurt;
             }
@@ -201,8 +237,22 @@ public final class CrystalFrog extends TamableAnimal {
             }
         }
         boolean hurt = super.hurtServer(level, source, amount);
-        if (hurt && isAlive()) reactToDamage(source);
+        if (hurt && isAlive()) {
+            talents.afterHurt(previousHealth);
+            reactToDamage(source);
+        }
         return hurt;
+    }
+
+    @Override protected float getDamageAfterMagicAbsorb(DamageSource source, float amount) {
+        float damage = super.getDamageAfterMagicAbsorb(source, amount);
+        return source.is(DamageTypeTags.BYPASSES_EFFECTS) ? damage : talents.absorb(damage);
+    }
+
+    @Override public boolean doHurtTarget(ServerLevel level, Entity target) {
+        boolean hit = super.doHurtTarget(level, target);
+        if (hit && target instanceof LivingEntity living) talents.afterMeleeHit(living);
+        return hit;
     }
 
     private void reactToDamage(DamageSource source) {
@@ -221,9 +271,34 @@ public final class CrystalFrog extends TamableAnimal {
     public boolean isFrightened() { return !isDueling() && responseTicks > 0 && (getHealth() < getMaxHealth() * 0.5F || getTarget() == null); }
     public @Nullable Vec3 threatPosition() { return threatPosition; }
     public boolean isDueling() { return duel != null; }
+    public boolean isDuelingWith(CrystalFrog other) { return duel != null && duel.opponents(this, other); }
+    public CrystalFrogDuels.@Nullable Match duelMatch() { return duel; }
+    public CrystalFrogTalents talents() { return talents; }
+    public boolean isTalentCasting() { return entityData.get(TALENT_CASTING); }
+    public void setTalentCasting(boolean casting) { entityData.set(TALENT_CASTING, casting); }
+    public boolean hasTalentShell() { return entityData.get(TALENT_SHELL); }
+    public void setTalentShell(boolean active) { entityData.set(TALENT_SHELL, active); }
+    public boolean isTalentTarget(LivingEntity target) {
+        if (!target.isAlive() || target.level() != level() || target.isSpectator() || !canAttack(target)
+                || target instanceof Player player && player.isCreative() || distanceToSqr(target) > 24 * 24) return false;
+        if (isDueling()) return target instanceof CrystalFrog other && isDuelingWith(other);
+        if (target instanceof CrystalFrog other && other.isDueling()) return false;
+        LivingEntity owner = getOwner();
+        return wantsRetaliation() && getTarget() == target && !isOrderedToSit() && !isAlliedTo(target)
+                && (owner == null || wantsToAttack(target, owner));
+    }
+    public CrystalFrogDuelCombat duelCombat() { return duelCombat; }
+    public CrystalFrogCombatAnimation combatAnimation() { return combatAnimation; }
+    public void setDuelPose(byte pose) { entityData.set(DUEL_POSE, pose); }
+    public CrystalFrogStyle duelStyle() {
+        if (duelStyle == null) duelStyle = CrystalFrogStyle.from("", getUUID());
+        return duelStyle;
+    }
 
     public void beginDuel(CrystalFrogDuels.Match match, CrystalFrog opponent) {
         duel = match;
+        duelCombat.reset();
+        talents.beginDuel();
         victoryTicks = responseTicks = 0;
         provoker = null;
         threatPosition = null;
@@ -238,6 +313,8 @@ public final class CrystalFrog extends TamableAnimal {
     public void finishDuel(CrystalFrogDuels.Match match, boolean won) {
         if (duel != match) return;
         duel = null;
+        duelCombat.reset();
+        talents.clearActive();
         sit(true);
         if (won) {
             victoryTicks = 120;
@@ -252,7 +329,8 @@ public final class CrystalFrog extends TamableAnimal {
         if (isTame() && stack.isEmpty() && player.isShiftKeyDown()) {
             if (!level().isClientSide()) player.sendSystemMessage(Component.translatable(
                     "message.uncannyencounters.crystal_frog.stats", getDisplayName(),
-                    stat(getHealth()), stat(getMaxHealth()), stat(getAttributeValue(Attributes.ATTACK_DAMAGE))));
+                    stat(getHealth()), stat(getMaxHealth()), stat(getAttributeValue(Attributes.ATTACK_DAMAGE)),
+                    duelStyle().description(), talents.talent().description()));
             return InteractionResult.SUCCESS.withoutItem();
         }
         if (isTame() && stack.is(ModItems.ACTIVATED_AMETHYST)) {
@@ -301,6 +379,7 @@ public final class CrystalFrog extends TamableAnimal {
     private void sit(boolean sitting) {
         if (duel != null) duel.cancel("cancelled");
         if (sitting) {
+            talents.clearActive();
             responseTicks = 0;
             provoker = null;
             threatPosition = null;
@@ -343,9 +422,14 @@ public final class CrystalFrog extends TamableAnimal {
             }
         }
         super.tick();
+        if (!level().isClientSide()) {
+            talents.tick();
+            talents.afterMovement();
+        }
         boolean animationDisabled = isInWater() || isInSittingPose() || isPassenger() || !isAlive();
         if (level().isClientSide()) {
             hopAnimation.tick(animationDisabled ? CrystalFrogHopAnimation.DISABLED : entityData.get(HOP_PHASE));
+            combatAnimation.tick(entityData.get(DUEL_POSE), isTalentCasting());
         } else {
             // Sample authoritative physics after travel; remote position interpolation
             // is not the animation clock. Metadata also initializes newly tracking clients.

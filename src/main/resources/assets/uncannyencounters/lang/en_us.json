@@ -39,7 +39,7 @@
   "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "Enhanced Lure Lantern (Breeze Rod)",
   "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "Enhanced Lure Lantern (Ghast Tear)",
   "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "Enhanced Lure Lantern (Prismarine Shard)",
-  "message.uncannyencounters.crystal_frog.stats": "%s | Health %s/%s | Attack %s",
+  "message.uncannyencounters.crystal_frog.stats": "%s | Health %s/%s | Attack %s | Style %s | Talent %s",
   "message.uncannyencounters.crystal_frog.duel.tame_first": "Only tamed Crystal Frogs can spar.",
   "message.uncannyencounters.crystal_frog.duel.busy": "This frog is already sparring.",
   "message.uncannyencounters.crystal_frog.duel.expired": "This challenge has expired. Select your frog and try again.",
@@ -55,5 +55,18 @@
   "message.uncannyencounters.crystal_frog.duel.interrupted": "Sparring interrupted by outside damage or a participant leaving.",
   "message.uncannyencounters.crystal_frog.duel.timeout": "No winner after two minutes. Sparring has ended.",
   "message.uncannyencounters.crystal_frog.duel.no_feeding": "Frogs cannot be fed during a sparring match.",
-  "block.uncannyencounters.lure_light": "Lure Light"
+  "block.uncannyencounters.lure_light": "Lure Light",
+  "style.uncannyencounters.crystal_frog.pouncer": "Pouncer",
+  "style.uncannyencounters.crystal_frog.skirmisher": "Skirmisher",
+  "style.uncannyencounters.crystal_frog.guard": "Guard",
+  "talent.uncannyencounters.crystal_frog.none": "None",
+  "talent.uncannyencounters.crystal_frog.slime_spit": "Crystal Slime Spit",
+  "talent.uncannyencounters.crystal_frog.crystal_shell": "Crystal Shell",
+  "talent.uncannyencounters.crystal_frog.ground_shock": "Ground Shock",
+  "talent.uncannyencounters.crystal_frog.crystal_echo": "Crystal Echo",
+  "entity.uncannyencounters.crystal_slime_shot": "Crystal Slime",
+  "death.attack.uncannyencounters.crystal_slime": "%1$s was defeated by %2$s's crystal slime",
+  "death.attack.uncannyencounters.crystal_slime.item": "%1$s was defeated by %2$s's crystal slime",
+  "death.attack.uncannyencounters.crystal_burst": "%1$s was defeated by %2$s's crystal burst",
+  "death.attack.uncannyencounters.crystal_burst.item": "%1$s was defeated by %2$s's crystal burst"
 }

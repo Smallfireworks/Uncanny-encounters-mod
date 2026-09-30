@@ -39,7 +39,7 @@
   "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "强化诱饵灯（旋风棒）",
   "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "强化诱饵灯（恶魂之泪）",
   "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "强化诱饵灯（海晶碎片）",
-  "message.uncannyencounters.crystal_frog.stats": "%s｜生命 %s/%s｜攻击 %s",
+  "message.uncannyencounters.crystal_frog.stats": "%s｜生命 %s/%s｜攻击 %s｜打法 %s｜特性 %s",
   "message.uncannyencounters.crystal_frog.duel.tame_first": "只有已驯服的水晶青蛙可以参加切磋。",
   "message.uncannyencounters.crystal_frog.duel.busy": "这只青蛙正在切磋。",
   "message.uncannyencounters.crystal_frog.duel.expired": "挑战已失效，请重新选择青蛙发起。",
@@ -55,5 +55,18 @@
   "message.uncannyencounters.crystal_frog.duel.interrupted": "斗蛙因外部伤害或参赛者离开而中断。",
   "message.uncannyencounters.crystal_frog.duel.timeout": "两分钟内未决出胜负，切磋结束。",
   "message.uncannyencounters.crystal_frog.duel.no_feeding": "切磋期间不能喂食回血。",
-  "block.uncannyencounters.lure_light": "诱饵灯光照"
+  "block.uncannyencounters.lure_light": "诱饵灯光照",
+  "style.uncannyencounters.crystal_frog.pouncer": "猛扑型",
+  "style.uncannyencounters.crystal_frog.skirmisher": "游斗型",
+  "style.uncannyencounters.crystal_frog.guard": "守势型",
+  "talent.uncannyencounters.crystal_frog.none": "无",
+  "talent.uncannyencounters.crystal_frog.slime_spit": "晶液喷吐",
+  "talent.uncannyencounters.crystal_frog.crystal_shell": "晶壳",
+  "talent.uncannyencounters.crystal_frog.ground_shock": "震地",
+  "talent.uncannyencounters.crystal_frog.crystal_echo": "碎晶回响",
+  "entity.uncannyencounters.crystal_slime_shot": "紫水晶粘液",
+  "death.attack.uncannyencounters.crystal_slime": "%1$s被%2$s的紫水晶粘液击败了",
+  "death.attack.uncannyencounters.crystal_slime.item": "%1$s被%2$s的紫水晶粘液击败了",
+  "death.attack.uncannyencounters.crystal_burst": "%1$s被%2$s的水晶震荡击败了",
+  "death.attack.uncannyencounters.crystal_burst.item": "%1$s被%2$s的水晶震荡击败了"
 }

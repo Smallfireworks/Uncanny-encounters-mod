@@ -15,6 +15,9 @@ import net.minecraft.world.item.*;
 import net.minecraft.world.level.levelgen.Heightmap;
 
 public final class ModEntities {
+    public static final EntityType<CrystalSlimeShot> CRYSTAL_SLIME_SHOT = register("crystal_slime_shot",
+            EntityType.Builder.<CrystalSlimeShot>of(CrystalSlimeShot::new, MobCategory.MISC)
+                    .sized(0.25F, 0.25F).clientTrackingRange(6).updateInterval(1).noSave().noSummon());
     public static final EntityType<LightMoth> LIGHT_MOTH = register("light_moth",
             EntityType.Builder.of(LightMoth::new, MobCategory.AMBIENT)
                     .sized(0.36F,0.36F).eyeHeight(0.2F).clientTrackingRange(8).updateInterval(1));

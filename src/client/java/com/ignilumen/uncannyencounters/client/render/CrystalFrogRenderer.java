@@ -24,6 +24,11 @@ public final class CrystalFrogRenderer extends MobRenderer<CrystalFrog, CrystalF
         state.landingCompression = entity.hopAnimation().landing(partialTick);
         state.reflectionProgress = entity.reflectionProgress(partialTick);
         state.attackProgress = entity.getSwingAnimation(partialTick);
+        state.duelCharge = entity.combatAnimation().charge(partialTick);
+        state.duelGuard = entity.combatAnimation().guard(partialTick);
+        state.duelRecovery = entity.combatAnimation().recovery(partialTick);
+        state.talentSpit = entity.combatAnimation().spit(partialTick);
+        state.talentShell = entity.hasTalentShell();
         state.sitting = entity.isInSittingPose();
         state.tame = entity.isTame();
     }

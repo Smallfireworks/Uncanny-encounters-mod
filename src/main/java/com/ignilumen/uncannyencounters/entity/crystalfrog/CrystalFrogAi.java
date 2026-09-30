@@ -13,11 +13,31 @@ import org.jspecify.annotations.Nullable;
 public final class CrystalFrogAi {
     public static void register(CrystalFrog frog, GoalSelector goals) {
         goals.addGoal(0, new Flee(frog));
+        goals.addGoal(0, new Goal() {
+            { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
+            @Override public boolean canUse() { return frog.talents().canStartSpit(); }
+            @Override public boolean canContinueToUse() { return frog.talents().isCasting(); }
+            @Override public boolean requiresUpdateEveryTick() { return true; }
+            @Override public void start() { frog.talents().startCasting(); }
+            @Override public void tick() { frog.talents().tickCasting(); }
+            @Override public void stop() { frog.talents().stopCasting(); }
+        });
+        goals.addGoal(1, new Goal() {
+            { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
+            @Override public boolean canUse() { return frog.isDueling(); }
+            @Override public boolean canContinueToUse() { return frog.isDueling(); }
+            @Override public boolean requiresUpdateEveryTick() { return true; }
+            @Override public void tick() { frog.duelCombat().tick(); }
+            @Override public void stop() {
+                if (!frog.isDueling()) frog.duelCombat().reset();
+                else frog.getNavigation().stop();
+            }
+        });
         goals.addGoal(1, new MeleeAttackGoal(frog, 1.15, true) {
-            @Override public boolean canUse() { return frog.wantsRetaliation() && super.canUse(); }
-            @Override public boolean canContinueToUse() { return frog.wantsRetaliation() && super.canContinueToUse(); }
+            @Override public boolean canUse() { return !frog.isDueling() && frog.wantsRetaliation() && super.canUse(); }
+            @Override public boolean canContinueToUse() { return !frog.isDueling() && frog.wantsRetaliation() && super.canContinueToUse(); }
             @Override protected boolean canPerformAttack(LivingEntity target) {
-                return frog.wantsRetaliation() && super.canPerformAttack(target);
+                return !frog.isDueling() && frog.wantsRetaliation() && super.canPerformAttack(target);
             }
         });
         goals.addGoal(2, new SitWhenOrderedToGoal(frog) {

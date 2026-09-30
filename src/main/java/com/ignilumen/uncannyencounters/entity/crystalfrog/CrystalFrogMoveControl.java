@@ -22,6 +22,12 @@ public final class CrystalFrogMoveControl extends MoveControl<CrystalFrog> {
             if (airborne) landingPause = 2;
             airborne = false;
         } else airborne = true;
+        // The AI launches before this controller ticks. Do not brake the initial impulse
+        // merely because vanilla collision has not yet updated onGround for this tick.
+        if (mob.isDueling() && mob.duelCombat().keepsHopMomentum()) {
+            operation = Operation.WAIT;
+            return;
+        }
         boolean moving = operation == Operation.MOVE_TO && !mob.getNavigation().isDone()
                 && !mob.isInSittingPose() && !mob.isPassenger();
         if (mob.isInWater()) {

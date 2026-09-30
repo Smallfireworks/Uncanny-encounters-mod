@@ -4,11 +4,15 @@ import com.ignilumen.uncannyencounters.entity.CrystalFrog;
 import com.ignilumen.uncannyencounters.entity.ModEntities;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogOwnerSupport;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuels;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuelCombat;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogStyle;
 import com.ignilumen.uncannyencounters.item.ModItems;
 import com.mojang.authlib.GameProfile;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.core.BlockPos;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.damagesource.DamageSource;
@@ -22,6 +26,8 @@ import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
 
 /** Integration cases for manual server GameTest runs; compile alone does not execute these. */
@@ -33,6 +39,9 @@ public final class CrystalFrogGameTests {
         frog.getAttribute(Attributes.MAX_HEALTH).setBaseValue(20);
         frog.getAttribute(Attributes.ATTACK_DAMAGE).setBaseValue(3);
         frog.setHealth(20);
+        CompoundTag noTalent = new CompoundTag();
+        noTalent.putString("CrystalFrogTalent", "none");
+        frog.talents().load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), noTalent), true);
         frog.setNoAi(true);
         return frog;
     }
@@ -186,6 +195,7 @@ public final class CrystalFrogGameTests {
         frog.finalizeSpawn(test.getLevel(), test.getLevel().getCurrentDifficultyAt(frog.blockPosition()), EntitySpawnReason.COMMAND, null);
         float max = frog.getMaxHealth();
         double attack = frog.getAttributeValue(Attributes.ATTACK_DAMAGE);
+        CrystalFrogStyle style = frog.duelStyle();
         test.assertTrue(max >= 16 && max <= 28 && attack >= 2 && attack <= 5, "Generated traits must respect the agreed ranges");
         frog.setHealth(max - 4);
         var output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
@@ -196,14 +206,19 @@ public final class CrystalFrogGameTests {
         loaded.finalizeSpawn(test.getLevel(), test.getLevel().getCurrentDifficultyAt(loaded.blockPosition()), EntitySpawnReason.COMMAND, null);
         test.assertTrue(loaded.getMaxHealth() == max && loaded.getAttributeValue(Attributes.ATTACK_DAMAGE) == attack
                 && loaded.getHealth() == max - 4, "Reloading must not reroll traits or heal the frog");
+        test.assertTrue(loaded.duelStyle() == style, "The fighting style must survive reloading with its stats");
         var legacy = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
         frog(test).saveWithoutId(legacy);
         var old = legacy.buildResult();
         old.remove("CrystalFrogTraitsInitialized");
+        old.remove("CrystalFrogStyle");
         loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), old));
         loaded.finalizeSpawn(test.getLevel(), test.getLevel().getCurrentDifficultyAt(loaded.blockPosition()), EntitySpawnReason.COMMAND, null);
         test.assertTrue(loaded.getMaxHealth() == 20 && loaded.getAttributeValue(Attributes.ATTACK_DAMAGE) == 3,
                 "An old save must retain the previous fixed stats");
+        CrystalFrogStyle legacyStyle = loaded.duelStyle();
+        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), old));
+        test.assertTrue(loaded.duelStyle() == legacyStyle, "Legacy style assignment must be stable even before the next save");
         test.succeed();
     }
 
@@ -234,6 +249,96 @@ public final class CrystalFrogGameTests {
                 "Even an oversized finishing hit must stop at 25 percent health and end the duel");
         test.assertTrue(first.getTarget() == null && second.getTarget() == null && first.isOrderedToSit() && second.isOrderedToSit(),
                 "Both participants must stop fighting after the result");
+        test.succeed();
+    }
+
+    private CrystalFrog styledFrog(GameTestHelper test, CrystalFrogStyle style, Vec3 position) {
+        CrystalFrog frog = frog(test);
+        var output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+        frog.saveWithoutId(output);
+        var saved = output.buildResult();
+        saved.putString("CrystalFrogStyle", style.id());
+        frog.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), saved));
+        frog.setNoAi(false);
+        frog.snapTo(test.absoluteVec(position), 0, 0);
+        frog.setOnGround(true);
+        return frog;
+    }
+
+    private void flatArena(GameTestHelper test) {
+        for (int x = 1; x <= 8; x++) for (int z = 1; z <= 8; z++) {
+            test.getLevel().setBlock(test.absolutePos(new BlockPos(x, 0, z)), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+            for (int y = 1; y <= 3; y++) test.getLevel().setBlock(test.absolutePos(new BlockPos(x, y, z)), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        }
+    }
+
+    private void startSparring(GameTestHelper test, CrystalFrog first, CrystalFrog second) {
+        Player owner = attacker(test, Vec3.ZERO);
+        first.tame(owner);
+        second.tame(owner);
+        CrystalFrogDuels.useStick(owner, first);
+        CrystalFrogDuels.useStick(owner, second);
+        test.assertTrue(first.isDuelingWith(second), "The style test requires an owner-approved match");
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void guardingReducesOneFrontalHitButLeavesTheRearExposed(GameTestHelper test) {
+        flatArena(test);
+        CrystalFrog guard = styledFrog(test, CrystalFrogStyle.GUARD, new Vec3(3.5, 1, 3.5));
+        CrystalFrog rival = styledFrog(test, CrystalFrogStyle.POUNCER, new Vec3(3.5, 1, 5.5));
+        startSparring(test, guard, rival);
+        guard.duelCombat().tick();
+        test.assertTrue(guard.duelCombat().action() == CrystalFrogDuelCombat.GUARDING, "A nearby guard must visibly brace");
+        guard.hurtServer(test.getLevel(), test.getLevel().damageSources().mobAttack(rival), 4);
+        test.assertTrue(Math.abs(guard.getHealth() - 18.6F) < 0.001F
+                        && guard.duelCombat().action() == CrystalFrogDuelCombat.COUNTER,
+                "The first frontal strike must be reduced and start a counter windup");
+        test.assertTrue(guard.duelCombat().defend(rival, 4) == 4, "One guard window must not block repeated strikes");
+        guard.cancelDuel("cancelled");
+        test.assertTrue(guard.duelCombat().action() == CrystalFrogDuelCombat.NORMAL
+                && guard.duelCombat().defend(rival, 4) == 4, "Defence must end immediately with the duel");
+
+        CrystalFrog rearGuard = styledFrog(test, CrystalFrogStyle.GUARD, new Vec3(6.5, 1, 3.5));
+        CrystalFrog flanker = styledFrog(test, CrystalFrogStyle.SKIRMISHER, new Vec3(6.5, 1, 5.5));
+        startSparring(test, rearGuard, flanker);
+        rearGuard.duelCombat().tick();
+        flanker.snapTo(test.absoluteVec(new Vec3(6.5, 1, 2.5)), 0, 0);
+        rearGuard.hurtServer(test.getLevel(), test.getLevel().damageSources().mobAttack(flanker), 4);
+        test.assertTrue(rearGuard.getHealth() == 16 && rearGuard.duelCombat().action() == CrystalFrogDuelCombat.GUARDING,
+                "Rear attacks must deal ordinary damage instead of triggering a frontal guard");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void pounceHasAWindupAndItsLaunchSurvivesTheNormalMoveController(GameTestHelper test) {
+        flatArena(test);
+        CrystalFrog pouncer = styledFrog(test, CrystalFrogStyle.POUNCER, new Vec3(3.5, 1, 3.5));
+        CrystalFrog rival = styledFrog(test, CrystalFrogStyle.SKIRMISHER, new Vec3(3.5, 1, 6.5));
+        startSparring(test, pouncer, rival);
+        pouncer.duelCombat().tick();
+        test.assertTrue(pouncer.duelCombat().action() == CrystalFrogDuelCombat.WINDUP && rival.getHealth() == 20,
+                "A pounce must telegraph before it can deal damage");
+        for (int i = 0; i < CrystalFrogDuelCombat.WINDUP_TICKS; i++) pouncer.duelCombat().tick();
+        Vec3 launch = pouncer.getDeltaMovement();
+        test.assertTrue(pouncer.duelCombat().action() == CrystalFrogDuelCombat.POUNCE && launch.horizontalDistanceSqr() > 0.1,
+                "Finishing the crouch must launch a real hop");
+        pouncer.getMoveControl().tick();
+        test.assertTrue(pouncer.getDeltaMovement().equals(launch), "The old idle brake must not erase a new pounce's momentum");
+        pouncer.cancelDuel("cancelled");
+        test.assertTrue(!pouncer.duelCombat().keepsHopMomentum(), "Cancelled fights must release special movement control");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void skirmisherSidestepsAfterStrikingWithoutChangingItsPermanentAttack(GameTestHelper test) {
+        flatArena(test);
+        CrystalFrog skirmisher = styledFrog(test, CrystalFrogStyle.SKIRMISHER, new Vec3(4.5, 1, 4.5));
+        CrystalFrog rival = styledFrog(test, CrystalFrogStyle.POUNCER, new Vec3(4.5, 1, 5.5));
+        startSparring(test, skirmisher, rival);
+        skirmisher.duelCombat().tick();
+        test.assertTrue(rival.getHealth() < 20 && skirmisher.duelCombat().action() == CrystalFrogDuelCombat.EVADE,
+                "A skirmisher must follow its hit with a separate sidestep action");
+        test.assertTrue(skirmisher.getAttributeValue(Attributes.ATTACK_DAMAGE) == 3, "Strike modifiers must not change rolled attack stats");
         test.succeed();
     }
 }

@@ -53,7 +53,21 @@ public final class CrystalFrogModel extends EntityModel<CrystalFrogRenderState> 
             root.z -= 21.5F * root.yScale * Mth.sin(pitch);
         }
         head.z -= Mth.sin(state.attackProgress * Mth.PI) * 0.35F;
-        float flare = 1 + Mth.sin(state.reflectionProgress * Mth.PI) * 0.025F;
+        // Show charging and bracing around the same foot anchor as the normal hop animation.
+        float crouch = state.duelCharge * 0.09F + state.duelGuard * 0.055F + state.duelRecovery * 0.035F + state.talentSpit * 0.04F;
+        ModelPart root = root();
+        float before = root.yScale;
+        root.yScale *= 1 - crouch;
+        root.xScale *= 1 + crouch * 0.3F;
+        root.zScale *= 1 + crouch * 0.3F;
+        root.y += 24 * (before - root.yScale);
+        leftLeg.xRot -= state.duelCharge * 0.25F;
+        rightLeg.xRot -= state.duelCharge * 0.25F;
+        leftArm.xRot -= state.duelGuard * 0.2F;
+        rightArm.xRot -= state.duelGuard * 0.2F;
+        head.xScale *= 1 + state.talentSpit * 0.06F;
+        head.zScale *= 1 + state.talentSpit * 0.08F;
+        float flare = 1 + Mth.sin(state.reflectionProgress * Mth.PI) * 0.025F + state.duelGuard * 0.025F + (state.talentShell ? 0.06F : 0);
         crystals.xScale = crystals.yScale = crystals.zScale = flare;
     }
 }
