@@ -63,7 +63,7 @@ public final class ModEntities {
         FabricDefaultAttributeRegistry.register(CRYSTAL_FROG, CrystalFrog.createAttributes());
         SpawnPlacements.register(CRYSTAL_FROG, SpawnPlacementTypes.ON_GROUND,
                 Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, CrystalFrog::canSpawn);
-        BiomeModifications.addSpawn(BiomeSelectors.foundInOverworld(), MobCategory.CREATURE, CRYSTAL_FROG, 4, 1, 2);
+        // Crystal frogs are assigned once to generated amethyst geodes, outside the animal spawn cap.
         FabricDefaultAttributeRegistry.register(ZOMBIE_PLAYER, ZombiePlayer.createAttributes());
         FabricDefaultAttributeRegistry.register(CAVE_ANGLER, CaveAngler.createAttributes());
         SpawnPlacements.register(CAVE_ANGLER, SpawnPlacementTypes.NO_RESTRICTIONS,

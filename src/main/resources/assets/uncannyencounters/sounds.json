@@ -1,0 +1,109 @@
+{
+  "crystal_frog.slime_charge": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.slime_charge",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/slime_charge",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.slime_spit": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.slime_spit",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/slime_spit",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.slime_splash": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.slime_splash",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/slime_splash_1",
+        "attenuation_distance": 12
+      },
+      {
+        "name": "uncannyencounters:crystal_frog/slime_splash_2",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shell_form": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shell_form",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shell_form",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shell_hit": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shell_hit",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shell_hit_1",
+        "attenuation_distance": 12
+      },
+      {
+        "name": "uncannyencounters:crystal_frog/shell_hit_2",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shell_break": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shell_break",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shell_break",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shell_fade": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shell_fade",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shell_fade",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shock_land": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shock_land",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shock_land",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.shock_burst": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.shock_burst",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/shock_burst",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.echo_chime": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.echo_chime",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/echo_chime",
+        "attenuation_distance": 12
+      }
+    ]
+  },
+  "crystal_frog.echo_burst": {
+    "subtitle": "subtitles.uncannyencounters.crystal_frog.echo_burst",
+    "sounds": [
+      {
+        "name": "uncannyencounters:crystal_frog/echo_burst",
+        "attenuation_distance": 12
+      }
+    ]
+  }
+}

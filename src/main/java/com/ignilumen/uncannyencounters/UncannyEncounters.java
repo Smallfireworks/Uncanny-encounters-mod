@@ -9,6 +9,9 @@ import com.ignilumen.uncannyencounters.entity.lightmoth.MothLights;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDuels;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalents;
+import com.ignilumen.uncannyencounters.effect.FrogEffects;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.GeodeFrogSpawns;
+import com.ignilumen.uncannyencounters.effect.FrogEffects;
 
 import net.minecraft.resources.Identifier;
 
@@ -29,9 +32,12 @@ public class UncannyEncounters implements ModInitializer {
 		// However, some things (like resources) may still be uninitialized.
 		// Proceed with mild caution.
 
+		FrogEffects.initialize();
+		FrogEffects.initialize();
 		ModBlocks.initialize();
 		ModItems.initialize();
 		ModEntities.initialize();
+		GeodeFrogSpawns.initialize();
 		ZombiePlayerSpawns.initialize();
 		MothLights.initialize();
 		MonsterLures.initialize();

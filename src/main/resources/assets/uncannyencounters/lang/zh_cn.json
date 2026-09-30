@@ -68,5 +68,16 @@
   "death.attack.uncannyencounters.crystal_slime": "%1$s被%2$s的紫水晶粘液击败了",
   "death.attack.uncannyencounters.crystal_slime.item": "%1$s被%2$s的紫水晶粘液击败了",
   "death.attack.uncannyencounters.crystal_burst": "%1$s被%2$s的水晶震荡击败了",
-  "death.attack.uncannyencounters.crystal_burst.item": "%1$s被%2$s的水晶震荡击败了"
+  "death.attack.uncannyencounters.crystal_burst.item": "%1$s被%2$s的水晶震荡击败了",
+  "subtitles.uncannyencounters.crystal_frog.slime_charge": "水晶青蛙积蓄黏液",
+  "subtitles.uncannyencounters.crystal_frog.slime_spit": "紫水晶黏液喷出",
+  "subtitles.uncannyencounters.crystal_frog.slime_splash": "紫水晶黏液溅开",
+  "subtitles.uncannyencounters.crystal_frog.shell_form": "晶壳凝结",
+  "subtitles.uncannyencounters.crystal_frog.shell_hit": "晶壳抵挡伤害",
+  "subtitles.uncannyencounters.crystal_frog.shell_break": "晶壳破碎",
+  "subtitles.uncannyencounters.crystal_frog.shell_fade": "晶壳消散",
+  "subtitles.uncannyencounters.crystal_frog.shock_land": "水晶青蛙震地蓄势",
+  "subtitles.uncannyencounters.crystal_frog.shock_burst": "水晶震波扩散",
+  "subtitles.uncannyencounters.crystal_frog.echo_chime": "碎晶回响蓄能",
+  "subtitles.uncannyencounters.crystal_frog.echo_burst": "碎晶回响爆裂"
 }

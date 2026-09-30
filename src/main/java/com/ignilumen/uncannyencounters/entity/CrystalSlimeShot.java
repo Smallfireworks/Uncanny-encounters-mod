@@ -3,8 +3,9 @@ package com.ignilumen.uncannyencounters.entity;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalents;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogTalentAttack;
 import com.ignilumen.uncannyencounters.item.ModItems;
+import com.ignilumen.uncannyencounters.effect.FrogEffects;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrowableItemProjectile;
@@ -54,8 +55,11 @@ public final class CrystalSlimeShot extends ThrowableItemProjectile {
             return;
         }
         super.tick();
-        if (level().isClientSide() && !isRemoved()) level().addParticle(ParticleTypes.WITCH,
-                getX(), getY(), getZ(), 0, 0, 0);
+        if (level().isClientSide() && !isRemoved() && tickCount % 2 == 0) {
+            Vec3 motion = getDeltaMovement();
+            level().addParticle(FrogEffects.SLIME_DROP, getX() - motion.x * 0.3, getY(), getZ() - motion.z * 0.3,
+                    -motion.x * 0.04, -0.015, -motion.z * 0.04);
+        }
     }
 
     @Override protected void onHitEntity(EntityHitResult hit) {
@@ -70,7 +74,9 @@ public final class CrystalSlimeShot extends ThrowableItemProjectile {
     @Override protected void onHit(HitResult hit) {
         super.onHit(hit);
         if (level() instanceof ServerLevel level) {
-            level.sendParticles(ParticleTypes.WITCH, getX(), getY(), getZ(), 8, 0.15, 0.1, 0.15, 0, 0.02, 0);
+            FrogEffects.splash(level, position());
+            if (hit instanceof BlockHitResult block && block.getDirection() == Direction.UP)
+                FrogEffects.single(level, FrogEffects.SLIME_SPLAT, position().add(0, 0.012, 0));
             discard();
         }
     }

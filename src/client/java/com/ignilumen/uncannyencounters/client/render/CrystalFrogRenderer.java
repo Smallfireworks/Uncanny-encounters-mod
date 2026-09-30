@@ -13,6 +13,7 @@ public final class CrystalFrogRenderer extends MobRenderer<CrystalFrog, CrystalF
 
     public CrystalFrogRenderer(EntityRendererProvider.Context context) {
         super(context, new CrystalFrogModel(CrystalFrogGeometry.load(context.getResourceManager())), 0.32F * CrystalFrog.SIZE_SCALE);
+        addLayer(new CrystalShellLayer(this));
     }
     @Override public CrystalFrogRenderState createRenderState() { return new CrystalFrogRenderState(); }
     @Override public Identifier getTextureLocation(CrystalFrogRenderState state) { return TEXTURE; }
@@ -29,6 +30,10 @@ public final class CrystalFrogRenderer extends MobRenderer<CrystalFrog, CrystalF
         state.duelRecovery = entity.combatAnimation().recovery(partialTick);
         state.talentSpit = entity.combatAnimation().spit(partialTick);
         state.talentShell = entity.hasTalentShell();
+        state.shellStrength = entity.talentShellHealth() / 4;
+        state.shellVisibility = entity.combatAnimation().shell(partialTick);
+        state.shellFlash = entity.combatAnimation().shellFlash(partialTick);
+        state.shellHitPanel = entity.combatAnimation().shellHitPanel();
         state.sitting = entity.isInSittingPose();
         state.tame = entity.isTame();
     }

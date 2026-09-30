@@ -3,14 +3,13 @@ package com.ignilumen.uncannyencounters.entity.crystalfrog;
 import com.ignilumen.uncannyencounters.UncannyEncounters;
 import com.ignilumen.uncannyencounters.entity.CrystalFrog;
 import com.ignilumen.uncannyencounters.entity.CrystalSlimeShot;
+import com.ignilumen.uncannyencounters.effect.FrogEffects;
 import java.util.HashMap;
 import java.util.Map;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -33,6 +32,7 @@ public final class CrystalFrogTalents {
     private boolean initialized, shellUsed;
     private float shellHealth;
     private long shellExpires, spitReadyAt, echoReadyAt, shockReadyAt;
+    private long lastEchoVisualAt = Long.MIN_VALUE;
     private @Nullable Burst burst;
     private @Nullable FrogTalentAttack casting;
     private int castTicks, airborneTicks;
@@ -53,8 +53,8 @@ public final class CrystalFrogTalents {
                     if (speed != null) speed.removeModifier(SLIME_SLOW);
                     iterator.remove();
                 } else if (server.getTickCount() % 5 == 0 && victim.level() instanceof ServerLevel level) {
-                    level.sendParticles(ParticleTypes.WITCH, victim.getX(), victim.getY(0.2), victim.getZ(),
-                            2, 0.2, 0.1, 0.2, 0, 0, 0);
+                    level.sendParticles(victim.onGround() ? FrogEffects.SLIME_SPLAT : FrogEffects.SLIME_DROP,
+                            victim.getX(), victim.getY() + 0.025, victim.getZ(), 2, 0.18, 0, 0.18, 0, 0, 0);
                 }
             }
         });
@@ -102,7 +102,10 @@ public final class CrystalFrogTalents {
         spitReadyAt = input.getLongOr("CrystalSpitReadyAt", 0);
         echoReadyAt = input.getLongOr("CrystalEchoReadyAt", 0);
         shockReadyAt = input.getLongOr("CrystalShockReadyAt", 0);
+        if (shellExpires <= now()) shellHealth = 0;
+        frog.setTalentShellHealth(shellHealth);
         burst = null;
+        lastEchoVisualAt = Long.MIN_VALUE;
         stopCasting();
         airborneTicks = 0;
     }
@@ -117,29 +120,27 @@ public final class CrystalFrogTalents {
 
     public void clearActive() {
         burst = null;
-        shellHealth = 0;
-        shellExpires = 0;
-        frog.setTalentShell(false);
+        fadeShell();
         stopCasting();
         airborneTicks = 0;
     }
 
     public void tick() {
         if (frog.level().isClientSide()) return;
-        if (shellExpires <= now()) shellHealth = 0;
-        frog.setTalentShell(shellHealth > 0);
+        if (shellExpires <= now() && shellHealth > 0) fadeShell();
+        frog.setTalentShellHealth(shellHealth);
         if (!frog.isDueling() && !frog.wantsRetaliation() && frog.getHealth() >= frog.getMaxHealth()) shellUsed = false;
-        if (shellHealth > 0 && frog.tickCount % 6 == 0 && frog.level() instanceof ServerLevel level) {
-            level.sendParticles(ParticleTypes.ENCHANTED_HIT, frog.getX(), frog.getY(0.5), frog.getZ(),
-                    4, 0.4, 0.25, 0.4, 0, 0.01, 0);
-        }
         Burst pending = burst;
         if (pending == null) return;
         if (!pending.attack.valid()) { burst = null; return; }
         if (now() >= pending.expires) {
             burst = null;
             detonate(pending);
-        } else if (frog.tickCount % 2 == 0) ring(pending.origin, pending.shock ? 2.5 : 1.25, false);
+        } else if (!pending.shock && lastEchoVisualAt != now() && (pending.expires - now()) % 2 == 0
+                && frog.level() instanceof ServerLevel level) {
+            lastEchoVisualAt = now();
+            FrogEffects.echoWarning(level, pending.origin, pending.expires - now());
+        }
     }
 
     /** Runs after travel so standing still and the spawn's first ground contact cannot trigger a shock. */
@@ -153,6 +154,7 @@ public final class CrystalFrogTalents {
                 && target != null && frog.isTalentTarget(target) && frog.distanceToSqr(target) <= 4 * 4) {
             shockReadyAt = now() + SHOCK_COOLDOWN;
             burst = new Burst(FrogTalentAttack.capture(frog, target), frog.position(), now() + SHOCK_DELAY, true);
+            if (frog.level() instanceof ServerLevel level) FrogEffects.shockStart(level, frog.position());
         }
     }
 
@@ -160,6 +162,8 @@ public final class CrystalFrogTalents {
         if (talent != CrystalFrogTalent.CRYSTAL_ECHO || now() < echoReadyAt || !frog.isTalentTarget(target)) return;
         echoReadyAt = now() + ECHO_COOLDOWN;
         burst = new Burst(FrogTalentAttack.capture(frog, target), target.position(), now() + ECHO_DELAY, false);
+        lastEchoVisualAt = now();
+        if (frog.level() instanceof ServerLevel level) FrogEffects.echoWarning(level, burst.origin, ECHO_DELAY);
     }
 
     public void afterHurt(float previousHealth) {
@@ -168,17 +172,26 @@ public final class CrystalFrogTalents {
         shellUsed = true;
         shellHealth = 4;
         shellExpires = now() + SHELL_DURATION;
-        frog.setTalentShell(true);
-        frog.playSound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.9F, 1.4F);
+        frog.setTalentShellHealth(shellHealth);
+        frog.playSound(FrogEffects.SHELL_FORM, 0.7F, 1);
     }
 
     /** Called after armor and resistance, only for a hit vanilla actually accepts. */
-    public float absorb(float amount) {
+    public float absorb(float amount, @Nullable Vec3 source) {
         if (talent != CrystalFrogTalent.CRYSTAL_SHELL || shellExpires <= now() || shellHealth <= 0 || amount <= 0) return amount;
         float absorbed = Math.min(shellHealth, amount);
         shellHealth -= absorbed;
-        frog.setTalentShell(shellHealth > 0);
+        frog.setTalentShellHealth(shellHealth);
+        if (shellHealth > 0) FrogEffects.shellHit(frog, source);
+        else FrogEffects.shellBreak(frog);
         return amount - absorbed;
+    }
+
+    private void fadeShell() {
+        if (shellHealth > 0 && !frog.level().isClientSide()) frog.playSound(FrogEffects.SHELL_FADE, 0.4F, 1);
+        shellHealth = 0;
+        shellExpires = 0;
+        frog.setTalentShellHealth(0);
     }
 
     public boolean canStartSpit() {
@@ -203,7 +216,7 @@ public final class CrystalFrogTalents {
         frog.setTalentCasting(true);
         frog.getNavigation().stop();
         frog.getMoveControl().setWait();
-        frog.playSound(SoundEvents.FROG_AMBIENT, 0.4F, 1.5F);
+        frog.playSound(FrogEffects.SLIME_CHARGE, 0.55F, 1);
     }
 
     public boolean isCasting() {
@@ -218,7 +231,7 @@ public final class CrystalFrogTalents {
         if (--castTicks == 0) {
             if (casting.visibleFrom(frog.getEyePosition()) && frog.level() instanceof ServerLevel level) {
                 level.addFreshEntity(new CrystalSlimeShot(casting));
-                frog.playSound(SoundEvents.SLIME_ATTACK, 0.65F, 1.4F);
+                frog.playSound(FrogEffects.SLIME_SPIT, 0.65F, 1);
             }
             stopCasting();
         }
@@ -231,7 +244,10 @@ public final class CrystalFrogTalents {
     }
 
     private void detonate(Burst pending) {
-        ring(pending.origin, pending.shock ? 2.5 : 1.25, true);
+        if (frog.level() instanceof ServerLevel level) {
+            if (pending.shock) FrogEffects.shockBurst(level, pending.origin);
+            else FrogEffects.echoBurst(level, pending.origin);
+        }
         LivingEntity target = pending.attack.target();
         Vec3 offset = target.position().subtract(pending.origin);
         double radius = pending.shock ? 2.5 : 1.25;
@@ -243,15 +259,4 @@ public final class CrystalFrogTalents {
         }
     }
 
-    private void ring(Vec3 center, double radius, boolean burst) {
-        if (!(frog.level() instanceof ServerLevel level)) return;
-        for (int i = 0; i < 12; i++) {
-            double angle = i * Math.PI / 6;
-            level.sendParticles(burst ? ParticleTypes.ENCHANTED_HIT : ParticleTypes.END_ROD,
-                    center.x + Math.cos(angle) * radius, center.y + 0.12, center.z + Math.sin(angle) * radius,
-                    1, 0, 0, 0, 0, burst ? 0.06 : 0, 0);
-        }
-        if (burst) level.playSound(null, center.x, center.y, center.z, SoundEvents.AMETHYST_BLOCK_BREAK,
-                frog.getSoundSource(), 0.65F, 1.3F);
-    }
 }

@@ -68,5 +68,16 @@
   "death.attack.uncannyencounters.crystal_slime": "%1$s was defeated by %2$s's crystal slime",
   "death.attack.uncannyencounters.crystal_slime.item": "%1$s was defeated by %2$s's crystal slime",
   "death.attack.uncannyencounters.crystal_burst": "%1$s was defeated by %2$s's crystal burst",
-  "death.attack.uncannyencounters.crystal_burst.item": "%1$s was defeated by %2$s's crystal burst"
+  "death.attack.uncannyencounters.crystal_burst.item": "%1$s was defeated by %2$s's crystal burst",
+  "subtitles.uncannyencounters.crystal_frog.slime_charge": "Crystal Frog gathers slime",
+  "subtitles.uncannyencounters.crystal_frog.slime_spit": "Crystal slime spurts",
+  "subtitles.uncannyencounters.crystal_frog.slime_splash": "Crystal slime splashes",
+  "subtitles.uncannyencounters.crystal_frog.shell_form": "Crystal shell forms",
+  "subtitles.uncannyencounters.crystal_frog.shell_hit": "Crystal shell absorbs a hit",
+  "subtitles.uncannyencounters.crystal_frog.shell_break": "Crystal shell shatters",
+  "subtitles.uncannyencounters.crystal_frog.shell_fade": "Crystal shell fades",
+  "subtitles.uncannyencounters.crystal_frog.shock_land": "Crystal Frog lands heavily",
+  "subtitles.uncannyencounters.crystal_frog.shock_burst": "Crystal shockwave expands",
+  "subtitles.uncannyencounters.crystal_frog.echo_chime": "Crystal echo resonates",
+  "subtitles.uncannyencounters.crystal_frog.echo_burst": "Crystal echo bursts"
 }

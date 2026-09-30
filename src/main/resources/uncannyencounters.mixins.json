@@ -2,6 +2,6 @@
   "required": true,
   "package": "com.ignilumen.uncannyencounters.mixin",
   "compatibilityLevel": "JAVA_25",
-  "mixins": ["MobLureMixin", "CubeMoveControlAccessor"],
+  "mixins": ["MobLureMixin", "CubeMoveControlAccessor", "GeodeFrogMixin"],
   "injectors": { "defaultRequire": 1 }
 }
