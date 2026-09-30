@@ -5,12 +5,10 @@ import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.util.RandomSource;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.block.LanternBlock;
 import net.minecraft.world.level.block.state.BlockState;
 
 /** The block identity preserves the single bait through placement, loot and saves. */
-public final class BaitedLureBlock extends LanternBlock {
+public final class BaitedLureBlock extends EnhancedLureBlock {
     private final LureBait bait;
 
     public BaitedLureBlock(Properties properties, LureBait bait) {
@@ -20,13 +18,9 @@ public final class BaitedLureBlock extends LanternBlock {
 
     public LureBait bait() { return bait; }
 
-    @Override protected void onPlace(BlockState state, Level level, BlockPos pos, BlockState old, boolean moved) {
-        super.onPlace(state, level, pos, old, moved);
-        if (!level.isClientSide()) level.scheduleTick(pos, this, 1);
-    }
-
     @Override protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         MonsterLures.offerBlock(level, pos, bait);
+        if (level.getGameTime() % 20 < MonsterLures.SCAN_INTERVAL) extendLight(level, pos);
         level.scheduleTick(pos, this, MonsterLures.SCAN_INTERVAL);
     }
 }

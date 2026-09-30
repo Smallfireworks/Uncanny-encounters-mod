@@ -38,5 +38,22 @@
   "block.uncannyencounters.enhanced_moth_lure_blaze_rod": "强化诱饵灯（烈焰棒）",
   "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "强化诱饵灯（旋风棒）",
   "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "强化诱饵灯（恶魂之泪）",
-  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "强化诱饵灯（海晶碎片）"
+  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "强化诱饵灯（海晶碎片）",
+  "message.uncannyencounters.crystal_frog.stats": "%s｜生命 %s/%s｜攻击 %s",
+  "message.uncannyencounters.crystal_frog.duel.tame_first": "只有已驯服的水晶青蛙可以参加切磋。",
+  "message.uncannyencounters.crystal_frog.duel.busy": "这只青蛙正在切磋。",
+  "message.uncannyencounters.crystal_frog.duel.expired": "挑战已失效，请重新选择青蛙发起。",
+  "message.uncannyencounters.crystal_frog.duel.deselected": "已取消选择。",
+  "message.uncannyencounters.crystal_frog.duel.select_own": "请先用木棍右键选择自己的青蛙。",
+  "message.uncannyencounters.crystal_frog.duel.not_ready": "双方需满血、未参战且相距不超过16格；主人须在32格内。受惊、拴绳或骑乘中的青蛙暂时无法参赛。",
+  "message.uncannyencounters.crystal_frog.duel.selected": "已选择%s。30秒内用木棍右键第二只青蛙；再次点击可取消选择。",
+  "message.uncannyencounters.crystal_frog.duel.challenge_sent": "已向%s发起斗蛙挑战，等待对方在30秒内确认。",
+  "message.uncannyencounters.crystal_frog.duel.challenge_received": "%s向你的%s发起斗蛙挑战。30秒内用木棍右键这只青蛙即可接受。",
+  "message.uncannyencounters.crystal_frog.duel.started": "斗蛙开始！任一方降至25%血量即停战。用木棍点击自己的参赛蛙可退出。",
+  "message.uncannyencounters.crystal_frog.duel.won": "%s的%s获胜！",
+  "message.uncannyencounters.crystal_frog.duel.cancelled": "斗蛙已取消，双方停止战斗。",
+  "message.uncannyencounters.crystal_frog.duel.interrupted": "斗蛙因外部伤害或参赛者离开而中断。",
+  "message.uncannyencounters.crystal_frog.duel.timeout": "两分钟内未决出胜负，切磋结束。",
+  "message.uncannyencounters.crystal_frog.duel.no_feeding": "切磋期间不能喂食回血。",
+  "block.uncannyencounters.lure_light": "诱饵灯光照"
 }

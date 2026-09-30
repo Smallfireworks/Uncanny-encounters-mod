@@ -1,6 +1,8 @@
 package com.ignilumen.uncannyencounters;
 
 import com.ignilumen.uncannyencounters.block.ModBlocks;
+import com.ignilumen.uncannyencounters.block.EnhancedLureBlock;
+import com.ignilumen.uncannyencounters.block.LureLightBlock;
 import com.ignilumen.uncannyencounters.entity.lightmoth.LureBait;
 import com.ignilumen.uncannyencounters.entity.lightmoth.LuredMob;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
@@ -190,6 +192,46 @@ public final class LureGameTests {
         creeper.hurtServer(test.getLevel(), test.getLevel().damageSources().fall(), 1);
         test.assertTrue(MonsterLures.destination(creeper) != null && !creeper.canAttack(player),
                 "Environmental damage must not manufacture a player attacker");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void enhancedLightExtendsIntoAirButRespectsWallsAndPlayerBlocks(GameTestHelper test) {
+        var level = test.getLevel();
+        BlockPos lamp = test.absolutePos(new BlockPos(2, 2, 2));
+        for (int x = 1; x <= 6; x++) level.setBlock(lamp.east(x), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(lamp.below(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(lamp, ModBlocks.ENHANCED_MOTH_LURE.defaultBlockState(), Block.UPDATE_ALL);
+        EnhancedLureBlock.extendLight(level, lamp);
+        BlockPos extension = lamp.east(6);
+        test.assertTrue(level.getBlockState(extension).is(ModBlocks.LURE_LIGHT)
+                && level.getBlockState(extension).getLightEmission() == 15, "Enhanced light must reach an additional six blocks into open air");
+        level.setBlock(lamp.east(3), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        LureLightBlock.refresh(level, extension);
+        test.assertTrue(level.getBlockState(extension).isAir(), "Adding an opaque wall must remove the extension behind it");
+        level.setBlock(lamp.east(3), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(extension, Blocks.GOLD_BLOCK.defaultBlockState(), Block.UPDATE_ALL);
+        EnhancedLureBlock.extendLight(level, lamp);
+        test.assertTrue(level.getBlockState(extension).is(Blocks.GOLD_BLOCK), "Extension must never overwrite a player's block");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void overlappingLanternsKeepSharedLightUntilTheLastOneIsRemoved(GameTestHelper test) {
+        var level = test.getLevel();
+        BlockPos first = test.absolutePos(new BlockPos(1, 3, 2)), second = first.east(12), shared = first.east(6);
+        for (int x = 0; x <= 12; x++) level.setBlock(first.east(x), Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(first.below(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(second.below(), Blocks.STONE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(first, ModBlocks.ENHANCED_MOTH_LURE.defaultBlockState(), Block.UPDATE_ALL);
+        level.setBlock(second, ModBlocks.BAITED_LURES.get(LureBait.BONE).defaultBlockState(), Block.UPDATE_ALL);
+        EnhancedLureBlock.extendLight(level, first);
+        level.setBlock(first, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        LureLightBlock.refresh(level, shared);
+        test.assertTrue(level.getBlockState(shared).is(ModBlocks.LURE_LIGHT), "Another enhanced variant must retain shared light");
+        level.setBlock(second, Blocks.AIR.defaultBlockState(), Block.UPDATE_ALL);
+        LureLightBlock.refresh(level, shared);
+        test.assertTrue(level.getBlockState(shared).isAir(), "Removing the last lantern must leave no orphaned light");
         test.succeed();
     }
 }

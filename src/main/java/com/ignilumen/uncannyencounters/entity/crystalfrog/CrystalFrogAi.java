@@ -30,8 +30,8 @@ public final class CrystalFrogAi {
             @Override public boolean canContinueToUse() { return !frog.isTame() && super.canContinueToUse(); }
         });
         goals.addGoal(5, new RandomStrollGoal(frog, 1, 35) {
-            @Override public boolean canUse() { return !frog.isOrderedToSit() && super.canUse(); }
-            @Override public boolean canContinueToUse() { return !frog.isOrderedToSit() && super.canContinueToUse(); }
+            @Override public boolean canUse() { return !frog.isOrderedToSit() && !frog.isDueling() && super.canUse(); }
+            @Override public boolean canContinueToUse() { return !frog.isOrderedToSit() && !frog.isDueling() && super.canContinueToUse(); }
         });
         goals.addGoal(6, new LookAtPlayerGoal(frog, Player.class, 6));
         goals.addGoal(7, new RandomLookAroundGoal(frog));
@@ -72,7 +72,7 @@ public final class CrystalFrogAi {
             return validOwner() && frog.distanceToSqr(owner) > 16;
         }
         private boolean validOwner() {
-            return owner != null && owner.isAlive() && owner.level() == frog.level() && !frog.unableToMoveToOwner();
+            return owner != null && owner.isAlive() && owner.level() == frog.level() && !frog.isDueling() && !frog.unableToMoveToOwner();
         }
         @Override public boolean canContinueToUse() { return validOwner() && frog.distanceToSqr(owner) > 4; }
         @Override public void start() { pathCooldown = 0; }

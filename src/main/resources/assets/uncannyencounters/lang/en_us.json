@@ -38,5 +38,22 @@
   "block.uncannyencounters.enhanced_moth_lure_blaze_rod": "Enhanced Lure Lantern (Blaze Rod)",
   "block.uncannyencounters.enhanced_moth_lure_breeze_rod": "Enhanced Lure Lantern (Breeze Rod)",
   "block.uncannyencounters.enhanced_moth_lure_ghast_tear": "Enhanced Lure Lantern (Ghast Tear)",
-  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "Enhanced Lure Lantern (Prismarine Shard)"
+  "block.uncannyencounters.enhanced_moth_lure_prismarine_shard": "Enhanced Lure Lantern (Prismarine Shard)",
+  "message.uncannyencounters.crystal_frog.stats": "%s | Health %s/%s | Attack %s",
+  "message.uncannyencounters.crystal_frog.duel.tame_first": "Only tamed Crystal Frogs can spar.",
+  "message.uncannyencounters.crystal_frog.duel.busy": "This frog is already sparring.",
+  "message.uncannyencounters.crystal_frog.duel.expired": "This challenge has expired. Select your frog and try again.",
+  "message.uncannyencounters.crystal_frog.duel.deselected": "Frog selection cleared.",
+  "message.uncannyencounters.crystal_frog.duel.select_own": "First select your own frog with a stick.",
+  "message.uncannyencounters.crystal_frog.duel.not_ready": "Both frogs must be healthy, idle and within 16 blocks of each other, with owners within 32 blocks. Frightened, leashed or riding frogs cannot spar.",
+  "message.uncannyencounters.crystal_frog.duel.selected": "Selected %s. Click another frog with a stick within 30 seconds, or click this frog again to deselect.",
+  "message.uncannyencounters.crystal_frog.duel.challenge_sent": "Challenge sent to %s. They have 30 seconds to accept.",
+  "message.uncannyencounters.crystal_frog.duel.challenge_received": "%s has challenged your %s. Click your challenged frog with a stick within 30 seconds to accept.",
+  "message.uncannyencounters.crystal_frog.duel.started": "Sparring started! The match ends when either frog reaches 25% health. Click your frog with a stick to withdraw.",
+  "message.uncannyencounters.crystal_frog.duel.won": "%s's %s wins!",
+  "message.uncannyencounters.crystal_frog.duel.cancelled": "Sparring cancelled. Both frogs have stopped fighting.",
+  "message.uncannyencounters.crystal_frog.duel.interrupted": "Sparring interrupted by outside damage or a participant leaving.",
+  "message.uncannyencounters.crystal_frog.duel.timeout": "No winner after two minutes. Sparring has ended.",
+  "message.uncannyencounters.crystal_frog.duel.no_feeding": "Frogs cannot be fed during a sparring match.",
+  "block.uncannyencounters.lure_light": "Lure Light"
 }

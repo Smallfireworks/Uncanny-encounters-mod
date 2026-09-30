@@ -21,8 +21,16 @@ public final class ModBlocks {
     public static final Block DIMMED_WALL_TORCH = registerLight("dimmed_wall_torch", Blocks.WALL_TORCH, DimmedLights.WallTorch::new, 0);
     public static final Block DIMMED_LANTERN = registerLight("dimmed_lantern", Blocks.LANTERN, DimmedLights.Lantern::new, 0);
     public static final Block MOTH_LURE = registerLight("moth_lure", Blocks.LANTERN, LanternBlock::new, 15);
-    public static final Block ENHANCED_MOTH_LURE = registerLight("enhanced_moth_lure", Blocks.LANTERN, LanternBlock::new, 15);
+    public static final Block ENHANCED_MOTH_LURE = registerLight("enhanced_moth_lure", Blocks.LANTERN, EnhancedLureBlock::new, 15);
+    public static final Block LURE_LIGHT = registerLureLight();
     public static final Map<LureBait, Block> BAITED_LURES = registerBaitedLures();
+
+    private static Block registerLureLight() {
+        ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, UncannyEncounters.id("lure_light"));
+        // Vanilla LIGHT's map-color function reads WATERLOGGED; this air-only light has no such state.
+        return Registry.register(BuiltInRegistries.BLOCK, key, new LureLightBlock(BlockBehaviour.Properties.ofFullCopy(Blocks.LIGHT)
+                .setId(key).mapColor(MapColor.NONE).replaceable().noLootTable().lightLevel(state -> 15)));
+    }
 
     private static Map<LureBait, Block> registerBaitedLures() {
         Map<LureBait, Block> blocks = new EnumMap<>(LureBait.class);
@@ -47,7 +55,7 @@ public final class ModBlocks {
             new Block(BlockBehaviour.Properties.of().setId(ZOMBIE_BLOCK_KEY).mapColor(MapColor.TERRACOTTA_GREEN)
                     .strength(0.6F).sound(SoundType.WART_BLOCK).noLootTable().pushReaction(PushReaction.IMMOVEABLE)));
 
-    public static void initialize() {}
+    public static void initialize() { EnhancedLureBlock.initialize(); }
 
     private ModBlocks() {}
 }
