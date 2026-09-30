@@ -17,6 +17,12 @@ import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.material.PushReaction;
 
 public final class ModBlocks {
+    public static final Block FROG_BREEDING_BOX = registerBreedingBox();
+    private static Block registerBreedingBox() {
+        ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, UncannyEncounters.id("frog_breeding_box"));
+        return Registry.register(BuiltInRegistries.BLOCK, key, new FrogBreedingBoxBlock(BlockBehaviour.Properties.of()
+                .setId(key).mapColor(MapColor.COLOR_PURPLE).strength(2.5F).sound(SoundType.WOOD).pushReaction(PushReaction.IMMOVEABLE)));
+    }
     public static final Block FROG_ALTAR = registerAltar();
     private static Block registerAltar() {
         ResourceKey<Block> key = ResourceKey.create(Registries.BLOCK, UncannyEncounters.id("frog_altar"));

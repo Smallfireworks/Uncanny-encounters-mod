@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "SNS",
+    "NAN",
+    "SNS"
+  ],
+  "key": {
+    "S": "minecraft:stick",
+    "N": "minecraft:iron_nugget",
+    "A": "minecraft:amethyst_shard"
+  },
+  "result": {
+    "id": "uncannyencounters:frog_cage",
+    "count": 1
+  }
+}

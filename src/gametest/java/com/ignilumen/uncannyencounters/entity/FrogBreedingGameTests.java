@@ -2,6 +2,7 @@ package com.ignilumen.uncannyencounters.entity;
 
 import com.ignilumen.uncannyencounters.entity.crystalfrog.*;
 import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogKeeperEncounters;
+import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogCourtSafety;
 import com.mojang.authlib.GameProfile;
 import java.util.List;
 import java.util.UUID;
@@ -45,6 +46,76 @@ public final class FrogBreedingGameTests {
             test.setBlock(new BlockPos(x, 0, z), Blocks.STONE);
             for (int y = 1; y <= 4; y++) test.setBlock(new BlockPos(x, y, z), Blocks.AIR);
         }
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 140)
+    public void sittingFrogSwimsUpToRefillAirWithoutUnderwaterBreathing(GameTestHelper test) {
+        floor(test);
+        for (int x = 1; x <= 8; x++) for (int z = 1; z <= 8; z++) for (int y = 1; y <= 3; y++)
+            test.setBlock(new BlockPos(x, y, z), Blocks.WATER);
+        CrystalFrog frog = frog(test, 20, 3);
+        frog.tame(owner(test));
+        frog.setOrderedToSit(true);
+        frog.setInSittingPose(true);
+        frog.setAirSupply(100);
+        test.assertTrue(!frog.canBreatheUnderwater(), "The fix must retain normal air consumption");
+        test.runAfterDelay(100, () -> {
+            test.assertTrue(frog.isAlive() && frog.getHealth() == 20 && frog.getAirSupply() >= 200,
+                    "A sitting frog in open water must swim to air and refill without drowning");
+            test.assertTrue(frog.isOrderedToSit(), "Breathing must not discard the owner's sitting command");
+            test.succeed();
+        });
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 30)
+    public void escapedChampionCanReturnAndBeRecalledWithoutDuplicatingOrHealing(GameTestHelper test) {
+        floor(test);
+        FrogKeeper keeper = test.spawn(ModEntities.FROG_KEEPER, new Vec3(4.5, 1, 3.5));
+        keeper.setAltar(test.absolutePos(new BlockPos(4, 1, 0)));
+        Player player = owner(test);
+        CrystalFrog challenger = frog(test, 100, 3);
+        challenger.tame(player);
+        challenger.snapTo(test.absoluteVec(new Vec3(3, 1, 6)), 0, 0);
+        test.runAfterDelay(3, () -> {
+            CrystalFrog champion = keeper.companion();
+            test.assertTrue(champion != null, "Champion must spawn");
+            CrystalFrogDuels.useStick(player, challenger);
+            keeper.challenge(player);
+            test.assertTrue(champion.isDueling(), "Fixture must enter a match");
+            champion.setHealth(80);
+            Vec3 outside = test.absoluteVec(new Vec3(23, 1, 6));
+            champion.snapTo(outside, 0, 0);
+            champion.duelMatch().tick();
+            test.assertTrue(!champion.isDueling(), "Leaving the court must end the match safely");
+            champion.tick();
+            test.assertTrue(!champion.isOrderedToSit(), "An undefeated escaped champion must not be locked into sitting");
+            keeper.challenge(player);
+            test.assertTrue(keeper.companion() == champion && keeper.insideArena(champion) && champion.getHealth() == 80,
+                    "Clicking the keeper must recover the same frog without healing or replacing it");
+            keeper.wonChallenge();
+            champion.snapTo(outside, 0, 0);
+            test.assertTrue(!FrogCourtSafety.recall(champion), "The defeated neutral or retaliating king must not be teleported out of combat");
+            test.succeed();
+        });
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void nurseryNeedsAParentTalentAndCountsTheEnvironmentOnlyOnce(GameTestHelper test) {
+        floor(test);
+        CrystalFrog first = frog(test, 20, 3);
+        CrystalFrog second = frog(test, 20, 3);
+        test.setBlock(new BlockPos(6, 1, 5), Blocks.BUDDING_AMETHYST);
+        test.setBlock(new BlockPos(6, 0, 6), Blocks.CALCITE);
+        test.setBlock(new BlockPos(6, 1, 6), Blocks.AMETHYST_CLUSTER);
+        test.setBlock(new BlockPos(6, 1, 7), Blocks.AMETHYST_BLOCK);
+        test.assertTrue(FrogBreedingHabitat.scoreForBirth(first, second) == 0, "Crystals alone must not enhance ordinary parents");
+        first.talents().setTalents(List.of(CRYSTAL_NURSERY));
+        test.assertTrue(FrogBreedingHabitat.scoreForBirth(first, second) == 7, "Mother rock, full cluster and block must count 4+2+1");
+        second.talents().setTalents(List.of(CRYSTAL_NURSERY));
+        test.assertTrue(FrogBreedingHabitat.scoreForBirth(first, second) == 7, "Two talented parents must not double the habitat bonus");
+        for (int x = 1; x <= 8; x++) for (int z = 1; z <= 8; z++) test.setBlock(new BlockPos(x, 0, z), Blocks.AMETHYST_BLOCK);
+        test.assertTrue(FrogBreedingHabitat.scoreForBirth(first, second) == 32, "Large nurseries must cap at 32 points");
+        test.succeed();
     }
 
     @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)

@@ -13,8 +13,9 @@ import org.jspecify.annotations.Nullable;
 
 public final class CrystalFrogAi {
     public static void register(CrystalFrog frog, GoalSelector goals) {
-        goals.addGoal(0, new Flee(frog));
-        goals.addGoal(0, new Goal() {
+        goals.addGoal(0, new FrogBreatheAirGoal(frog));
+        goals.addGoal(1, new Flee(frog));
+        goals.addGoal(1, new Goal() {
             { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
             @Override public boolean canUse() { return frog.swallow().canStart(); }
             @Override public boolean canContinueToUse() { return frog.swallow().active(); }
@@ -23,7 +24,7 @@ public final class CrystalFrogAi {
             @Override public void tick() { frog.swallow().tick(); }
             @Override public void stop() { frog.swallow().clear(); }
         });
-        goals.addGoal(0, new Goal() {
+        goals.addGoal(1, new Goal() {
             { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
             @Override public boolean canUse() { return frog.talents().canStartSpit(); }
             @Override public boolean canContinueToUse() { return frog.talents().isCasting(); }
@@ -32,7 +33,7 @@ public final class CrystalFrogAi {
             @Override public void tick() { frog.talents().tickCasting(); }
             @Override public void stop() { frog.talents().stopCasting(); }
         });
-        goals.addGoal(1, new Goal() {
+        goals.addGoal(2, new Goal() {
             { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
             @Override public boolean canUse() { return frog.isDueling(); }
             @Override public boolean canContinueToUse() { return frog.isDueling(); }
@@ -43,34 +44,34 @@ public final class CrystalFrogAi {
                 else frog.getNavigation().stop();
             }
         });
-        goals.addGoal(1, new MeleeAttackGoal(frog, 1.15, true) {
+        goals.addGoal(2, new MeleeAttackGoal(frog, 1.15, true) {
             @Override public boolean canUse() { return !frog.isDueling() && frog.wantsRetaliation() && super.canUse(); }
             @Override public boolean canContinueToUse() { return !frog.isDueling() && frog.wantsRetaliation() && super.canContinueToUse(); }
             @Override protected boolean canPerformAttack(LivingEntity target) {
                 return !frog.isDueling() && frog.wantsRetaliation() && super.canPerformAttack(target);
             }
         });
-        goals.addGoal(2, new SitWhenOrderedToGoal(frog) {
+        goals.addGoal(3, new SitWhenOrderedToGoal(frog) {
             @Override public boolean canUse() { return frog.isOrderedToSit() && frog.onGround() && !frog.isInWater(); }
             @Override public boolean canContinueToUse() { return canUse(); }
         });
-        goals.addGoal(3, new FollowOwner(frog));
-        goals.addGoal(3, new ReturnToFrogCourtGoal(frog, frog::keeperId));
-        goals.addGoal(2, new BreedGoal(frog, 1) {
+        goals.addGoal(4, new FollowOwner(frog));
+        goals.addGoal(4, new ReturnToFrogCourtGoal(frog, frog::keeperId));
+        goals.addGoal(3, new BreedGoal(frog, 1) {
             @Override public boolean canUse() { return frog.breedingAvailable() && super.canUse(); }
             @Override public boolean canContinueToUse() { return frog.breedingAvailable() && super.canContinueToUse(); }
         });
-        goals.addGoal(3, new FollowParentGoal(frog, 1));
-        goals.addGoal(4, new TemptGoal(frog, 1, stack -> stack.is(ModItems.ACTIVATED_AMETHYST), false) {
+        goals.addGoal(4, new FollowParentGoal(frog, 1));
+        goals.addGoal(5, new TemptGoal(frog, 1, stack -> stack.is(ModItems.ACTIVATED_AMETHYST), false) {
             @Override public boolean canUse() { return !frog.isTame() && super.canUse(); }
             @Override public boolean canContinueToUse() { return !frog.isTame() && super.canContinueToUse(); }
         });
-        goals.addGoal(5, new RandomStrollGoal(frog, 1, 35) {
+        goals.addGoal(6, new RandomStrollGoal(frog, 1, 35) {
             @Override public boolean canUse() { return !frog.isKeeperFrog() && !frog.isOrderedToSit() && !frog.isDueling() && super.canUse(); }
             @Override public boolean canContinueToUse() { return !frog.isKeeperFrog() && !frog.isOrderedToSit() && !frog.isDueling() && super.canContinueToUse(); }
         });
-        goals.addGoal(6, new LookAtPlayerGoal(frog, Player.class, 6));
-        goals.addGoal(7, new RandomLookAroundGoal(frog));
+        goals.addGoal(7, new LookAtPlayerGoal(frog, Player.class, 6));
+        goals.addGoal(8, new RandomLookAroundGoal(frog));
     }
 
     private static final class Flee extends PanicGoal {

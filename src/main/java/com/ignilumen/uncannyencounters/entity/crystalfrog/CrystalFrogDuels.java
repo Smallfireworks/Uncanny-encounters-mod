@@ -2,6 +2,8 @@ package com.ignilumen.uncannyencounters.entity.crystalfrog;
 
 import com.ignilumen.uncannyencounters.entity.CrystalFrog;
 import com.ignilumen.uncannyencounters.entity.FrogKeeper;
+import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogCourtSafety;
+import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.entity.LivingEntity;
 import java.util.HashMap;
 import java.util.Map;
@@ -165,6 +167,15 @@ public final class CrystalFrogDuels {
 
         public boolean opponents(CrystalFrog a, CrystalFrog b) {
             return !ended && (a == first && b == second || a == second && b == first);
+        }
+
+        public boolean allowsPosition(CrystalFrog frog, Vec3 point) {
+            return !(secondOwner instanceof FrogKeeper keeper) || keeper.allowsDuelPosition(frog, point);
+        }
+
+        public Vec3 limitHop(CrystalFrog frog, Vec3 motion) {
+            return secondOwner instanceof FrogKeeper keeper
+                    ? FrogCourtSafety.limitHop(keeper.altar(), frog.position(), frog.getBbWidth(), motion) : motion;
         }
 
         public void tick() {

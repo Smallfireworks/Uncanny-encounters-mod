@@ -13,6 +13,7 @@ import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogMoveControl
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogOwnerSupport;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalent;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogGenetics;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogBreedingHabitat;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogKingSwallow;
 import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogKeeperEncounters;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -22,6 +23,7 @@ import java.util.List;
 import java.util.UUID;
 import com.ignilumen.uncannyencounters.item.ModItems;
 import com.mojang.serialization.Codec;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
@@ -100,6 +102,8 @@ public final class CrystalFrog extends TamableAnimal {
     private final CrystalFrogTalents talents = new CrystalFrogTalents(this);
     private final FrogKingSwallow swallow = new FrogKingSwallow(this);
     private @Nullable UUID keeperId;
+    private boolean seekingAir;
+    private @Nullable CompoundTag breedingParents;
     private @Nullable Vec3 threatPosition;
     private @Nullable LivingEntity provoker;
     private final CrystalFrogOwnerSupport ownerSupport = new CrystalFrogOwnerSupport(this);
@@ -141,6 +145,7 @@ public final class CrystalFrog extends TamableAnimal {
         super.addAdditionalSaveData(output);
         output.putBoolean("CrystalFrogTraitsInitialized", traitsInitialized);
         output.putString("CrystalFrogStyle", duelStyle().id());
+        if (breedingParents != null) output.store("CrystalFrogParents", CompoundTag.CODEC, breedingParents);
         if (keeperId != null) output.store("FrogKeeper", UUIDUtil.CODEC, keeperId);
         swallow.save(output);
         talents.save(output);
@@ -166,6 +171,7 @@ public final class CrystalFrog extends TamableAnimal {
         setHealth(input.getFloatOr("Health", getHealth()));
         keeperId = input.read("FrogKeeper", UUIDUtil.CODEC).orElse(null);
         swallow.load(input);
+        breedingParents = input.read("CrystalFrogParents", CompoundTag.CODEC).orElse(null);
     }
 
     @Override protected void registerGoals() { CrystalFrogAi.register(this, goalSelector); }
@@ -304,6 +310,8 @@ public final class CrystalFrog extends TamableAnimal {
     public CrystalFrogDuels.@Nullable Match duelMatch() { return duel; }
     public CrystalFrogTalents talents() { return talents; }
     public FrogKingSwallow swallow() { return swallow; }
+    public boolean isSeekingAir() { return seekingAir; }
+    public void setSeekingAir(boolean value) { seekingAir = value; }
     public int tongueTargetId() { return entityData.get(TONGUE_TARGET); }
     public void setTongueTarget(int id) { entityData.set(TONGUE_TARGET, id); }
     public boolean isKing() { return talents.has(CrystalFrogTalent.FROG_KING); }
@@ -415,6 +423,7 @@ public final class CrystalFrog extends TamableAnimal {
         if (!isAlive()) return InteractionResult.PASS;
         initializeTraits();
         ItemStack stack = player.getItemInHand(hand);
+        if (stack.is(ModItems.FROG_CAGE)) return com.ignilumen.uncannyencounters.item.FrogCageItem.capture(player, this, hand);
         if (isKeeperFrog()) {
             if (stack.is(Items.STICK) && getOwner() instanceof FrogKeeper keeper) keeper.challenge(player);
             return InteractionResult.SUCCESS;
@@ -424,6 +433,11 @@ public final class CrystalFrog extends TamableAnimal {
                     "message.uncannyencounters.crystal_frog.stats", getDisplayName(),
                     stat(getHealth()), stat(getMaxHealth()), stat(getAttributeValue(Attributes.ATTACK_DAMAGE)),
                     duelStyle().description(), talents.description()));
+            if (level() instanceof ServerLevel server && talents.has(CrystalFrogTalent.CRYSTAL_NURSERY)) {
+                int score = FrogBreedingHabitat.score(server, blockPosition());
+                player.sendSystemMessage(Component.translatable("message.uncannyencounters.crystal_frog.habitat",
+                        score, String.format(java.util.Locale.ROOT, "%.2f", FrogGenetics.habitatMultiplier(score))));
+            }
             return InteractionResult.SUCCESS.withoutItem();
         }
         if (isTame() && stack.is(ModItems.ACTIVATED_AMETHYST)) {
@@ -507,7 +521,7 @@ public final class CrystalFrog extends TamableAnimal {
                 var ledger = FrogKeeperEncounters.get((ServerLevel)level());
                 ledger.registerFrog(this);
                 if (ledger.frogDead(keeperId)) { discard(); return; }
-                if (!isDueling() && ledger.defeated(keeperId))
+                if (!isDueling())
                     setKeeperRetaliationTarget(ledger.retaliationTarget((ServerLevel)level(), keeperId, this));
             }
             if (duel != null) duel.tick();
@@ -554,7 +568,13 @@ public final class CrystalFrog extends TamableAnimal {
 
     /** Real jumps, using vanilla collision and gravity. */
     public void hop(double x, double z, boolean uphill) {
+        if (duel != null) {
+            Vec3 limited = duel.limitHop(this, new Vec3(x, 0, z));
+            x = limited.x;
+            z = limited.z;
+        }
         float power = getJumpPower(uphill ? 0.5F / 0.42F : 0.36F / 0.42F);
+        if (isBaby()) power *= uphill ? 0.95F : 0.9F;
         setDeltaMovement(x, Math.max(power, getDeltaMovement().y), z);
         needsSync = true;
         playSound(SoundEvents.FROG_LONG_JUMP, 0.25F, 1.15F + random.nextFloat() * 0.2F);
@@ -608,10 +628,11 @@ public final class CrystalFrog extends TamableAnimal {
             var alternatives = java.util.Arrays.stream(CrystalFrogStyle.values()).filter(s -> s != original).toList();
             style = alternatives.get(random.nextInt(alternatives.size()));
         }
+        int habitatScore = FrogBreedingHabitat.scoreForBirth(this, other);
         child.configureTraits(FrogGenetics.inheritStat(random, getAttributeBaseValue(Attributes.MAX_HEALTH),
-                        other.getAttributeBaseValue(Attributes.MAX_HEALTH), true),
+                        other.getAttributeBaseValue(Attributes.MAX_HEALTH), true, habitatScore),
                 FrogGenetics.inheritStat(random, getAttributeBaseValue(Attributes.ATTACK_DAMAGE),
-                        other.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), false), style,
+                        other.getAttributeBaseValue(Attributes.ATTACK_DAMAGE), false, habitatScore), style,
                 FrogGenetics.inheritTalents(random, talents.all(), other.talents.all()));
         var owner = getOwnerReference();
         if (isTame() && other.isTame() && owner != null && other.getOwnerReference() != null

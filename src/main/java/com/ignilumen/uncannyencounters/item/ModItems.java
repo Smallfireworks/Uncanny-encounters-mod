@@ -16,6 +16,13 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.level.block.Block;
 
 public final class ModItems {
+    public static final Item FROG_CAGE = registerCage("frog_cage", 16);
+    public static final Item CAGED_CRYSTAL_FROG = registerCage("caged_crystal_frog", 1);
+    public static final Item FROG_BREEDING_BOX = registerBlock("frog_breeding_box", ModBlocks.FROG_BREEDING_BOX);
+    private static Item registerCage(String name, int maxStack) {
+        ResourceKey<Item> key = ResourceKey.create(Registries.ITEM, UncannyEncounters.id(name));
+        return Registry.register(BuiltInRegistries.ITEM, key, new FrogCageItem(new Item.Properties().setId(key).stacksTo(maxStack)));
+    }
     public static final Item FROG_ALTAR = registerBlock("frog_altar", ModBlocks.FROG_ALTAR);
     public static final Item MOTH_SCALE_DUST = register("moth_scale_dust");
     public static final Item MOTH_LURE = registerBlock("moth_lure",ModBlocks.MOTH_LURE);
@@ -45,6 +52,8 @@ public final class ModItems {
             entries.accept(MOTH_SCALE_DUST);
         });
         CreativeModeTabEvents.modifyOutputEvent(CreativeModeTabs.FUNCTIONAL_BLOCKS).register(entries -> {
+            entries.accept(FROG_CAGE);
+            entries.accept(FROG_BREEDING_BOX);
             entries.accept(FROG_ALTAR);
             entries.accept(MOTH_LURE);
             entries.accept(ENHANCED_MOTH_LURE);

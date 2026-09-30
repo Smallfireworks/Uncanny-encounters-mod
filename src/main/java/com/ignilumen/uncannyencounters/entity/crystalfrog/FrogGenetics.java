@@ -8,12 +8,22 @@ import static com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTale
 /** Birth-only rolls. Wild initialization never calls this inheritance path. */
 public final class FrogGenetics {
     public static double mutationChance(double inherited, double wildCeiling) {
-        return 0.15 * Math.min(1, wildCeiling / Math.max(inherited, 0.001));
+        return mutationChance(inherited, wildCeiling, 0);
     }
 
+    public static double mutationChance(double inherited, double wildCeiling, int habitatScore) {
+        return 0.15 * Math.min(1, wildCeiling / Math.max(inherited, 0.001)) * habitatMultiplier(habitatScore);
+    }
+
+    public static double habitatMultiplier(int score) { return 1 + Math.clamp(score, 0, 32) / 64.0; }
+
     public static double inheritStat(RandomSource random, double a, double b, boolean health) {
+        return inheritStat(random, a, b, health, 0);
+    }
+
+    public static double inheritStat(RandomSource random, double a, double b, boolean health, int habitatScore) {
         double value = random.nextBoolean() ? a : b;
-        if (random.nextDouble() < mutationChance(value, health ? 28 : 5))
+        if (random.nextDouble() < mutationChance(value, health ? 28 : 5, habitatScore))
             value += health ? 1 + random.nextInt(4) : 0.2 + random.nextDouble() * 0.4;
         return value;
     }
@@ -42,7 +52,7 @@ public final class FrogGenetics {
             for (var talent : upgrades) if (add(child, talent)) break;
         }
         if (random.nextDouble() < 0.02 && child.size() < 2) {
-            var basics = new ArrayList<>(List.of(SLIME_SPIT, CRYSTAL_SHELL, GROUND_SHOCK, CRYSTAL_ECHO));
+            var basics = new ArrayList<>(List.of(SLIME_SPIT, CRYSTAL_SHELL, GROUND_SHOCK, CRYSTAL_ECHO, CRYSTAL_NURSERY));
             basics.removeIf(t -> child.stream().anyMatch(c -> c.family() == t));
             if (!basics.isEmpty()) add(child, basics.get(random.nextInt(basics.size())));
         }

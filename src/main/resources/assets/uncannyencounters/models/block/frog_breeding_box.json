@@ -1,0 +1,8 @@
+{
+  "parent": "minecraft:block/cube_bottom_top",
+  "textures": {
+    "top": "uncannyencounters:block/frog_breeding_box_top",
+    "side": "uncannyencounters:block/frog_breeding_box_side",
+    "bottom": "minecraft:block/oak_planks"
+  }
+}

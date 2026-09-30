@@ -17,6 +17,8 @@ import com.ignilumen.uncannyencounters.client.render.ZombiePlayerRenderer;
 public class UncannyEncountersClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
+		net.minecraft.client.gui.screens.MenuScreens.register(com.ignilumen.uncannyencounters.block.FrogBreedingBoxMenu.TYPE,
+				com.ignilumen.uncannyencounters.client.screen.FrogBreedingBoxScreen::new);
 		FrogFxParticle.initialize();
 		EntityRenderers.register(ModEntities.CRYSTAL_SLIME_SHOT, CrystalSlimeRenderer::new);
 		EntityRenderers.register(ModEntities.LIGHT_MOTH, LightMothRenderer::new);

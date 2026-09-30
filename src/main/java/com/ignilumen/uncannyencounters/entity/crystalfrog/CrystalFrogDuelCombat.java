@@ -260,6 +260,7 @@ public final class CrystalFrogDuelCombat {
     }
 
     private boolean safeLanding(Vec3 point) {
+        if (frog.duelMatch() != null && !frog.duelMatch().allowsPosition(frog, point)) return false;
         BlockPos feet = BlockPos.containing(point);
         if (!frog.level().isLoaded(feet) || !frog.level().isLoaded(feet.below())) return false;
         var floor = frog.level().getBlockState(feet.below());

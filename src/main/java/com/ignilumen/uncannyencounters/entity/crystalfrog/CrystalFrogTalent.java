@@ -7,12 +7,13 @@ public enum CrystalFrogTalent {
     NONE("none"), SLIME_SPIT("slime_spit"), CRYSTAL_SHELL("crystal_shell"),
     GROUND_SHOCK("ground_shock"), CRYSTAL_ECHO("crystal_echo"),
     SCATTER_SLIME("scatter_slime"), RETALIATING_SHELL("retaliating_shell"),
-    DOUBLE_ECHO("double_echo"), FROG_KING("frog_king");
+    DOUBLE_ECHO("double_echo"), FROG_KING("frog_king"), CRYSTAL_NURSERY("crystal_nursery");
 
     private final String id;
     CrystalFrogTalent(String id) { this.id = id; }
     public String id() { return id; }
     public boolean advanced() { return this == SCATTER_SLIME || this == RETALIATING_SHELL || this == DOUBLE_ECHO; }
+    public boolean wildTalent() { return this == SLIME_SPIT || this == CRYSTAL_SHELL || this == GROUND_SHOCK || this == CRYSTAL_ECHO; }
     public CrystalFrogTalent family() {
         return switch (this) {
             case SCATTER_SLIME -> SLIME_SPIT;

@@ -17,6 +17,7 @@ public final class ReturnToFrogCourtGoal extends Goal {
     private final Supplier<@Nullable UUID> keeperId;
     private @Nullable BlockPos home;
     private int cooldown;
+    private int returnTicks;
     public ReturnToFrogCourtGoal(PathfinderMob mob, Supplier<@Nullable UUID> keeperId) {
         this.mob = mob;
         this.keeperId = keeperId;
@@ -30,9 +31,14 @@ public final class ReturnToFrogCourtGoal extends Goal {
         return home != null && level.hasChunkAt(home) && mob.distanceToSqr(Vec3.atBottomCenterOf(home)) > 4;
     }
     @Override public boolean canContinueToUse() { return canUse(); }
-    @Override public void start() { cooldown = 0; }
+    @Override public void start() { cooldown = returnTicks = 0; }
+    @Override public boolean requiresUpdateEveryTick() { return true; }
     @Override public void stop() { mob.getNavigation().stop(); }
     @Override public void tick() {
+        if (++returnTicks >= 200 && mob instanceof CrystalFrog frog) {
+            returnTicks = 0;
+            if (FrogCourtSafety.recall(frog)) return;
+        }
         if (home != null && --cooldown <= 0) {
             cooldown = adjustedTickDelay(20);
             mob.getNavigation().moveTo(home.getX() + 0.5, home.getY(), home.getZ() + 0.5, 1);

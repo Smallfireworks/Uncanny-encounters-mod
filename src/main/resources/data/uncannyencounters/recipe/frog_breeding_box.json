@@ -1,0 +1,18 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "PGP",
+    "ACA",
+    "PPP"
+  ],
+  "key": {
+    "P": "#minecraft:planks",
+    "G": "minecraft:glass",
+    "A": "minecraft:amethyst_shard",
+    "C": "minecraft:chest"
+  },
+  "result": {
+    "id": "uncannyencounters:frog_breeding_box",
+    "count": 1
+  }
+}

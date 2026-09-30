@@ -64,7 +64,7 @@ public final class FrogCourtStructure extends SinglePieceStructure {
             for (int x : new int[]{3, 21}) for (int z : new int[]{3, 12, 21}) {
                 for (int y = 1; y <= 5; y++) placeBlock(level,
                         (y == 1 || y == 5 ? Blocks.CHISELED_QUARTZ_BLOCK : Blocks.AMETHYST_BLOCK).defaultBlockState(), x, y, z, clip);
-                placeBlock(level, Blocks.SEA_LANTERN.defaultBlockState(), x, 6, z, clip);
+                placeBlock(level, Blocks.PEARLESCENT_FROGLIGHT.defaultBlockState(), x, 6, z, clip);
                 placeBlock(level, Blocks.AMETHYST_CLUSTER.defaultBlockState(), x, 7, z, clip);
             }
             // Clear approach, raised altar and two crystal finials at the north entrance.

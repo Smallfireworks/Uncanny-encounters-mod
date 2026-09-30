@@ -4,6 +4,7 @@ import net.fabricmc.api.ModInitializer;
 import com.ignilumen.uncannyencounters.entity.ModEntities;
 import com.ignilumen.uncannyencounters.block.ModBlocks;
 import com.ignilumen.uncannyencounters.item.ModItems;
+import com.ignilumen.uncannyencounters.item.ModCreativeTabs;
 import com.ignilumen.uncannyencounters.entity.zombieplayer.ZombiePlayerSpawns;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MothLights;
 import com.ignilumen.uncannyencounters.entity.lightmoth.MonsterLures;
@@ -36,6 +37,8 @@ public class UncannyEncounters implements ModInitializer {
 		ModBlocks.initialize();
 		ModItems.initialize();
 		ModEntities.initialize();
+		ModCreativeTabs.initialize();
+		com.ignilumen.uncannyencounters.block.FrogBreedingBoxBlockEntity.initialize();
 		FrogCourtStructure.initialize();
 		GeodeFrogSpawns.initialize();
 		ZombiePlayerSpawns.initialize();

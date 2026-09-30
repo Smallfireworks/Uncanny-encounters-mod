@@ -5,6 +5,7 @@ import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogStyle;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalent;
 import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogKeeperEncounters;
 import com.ignilumen.uncannyencounters.entity.frogkeeper.ReturnToFrogCourtGoal;
+import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogCourtSafety;
 import java.util.List;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
@@ -73,7 +74,10 @@ public final class FrogKeeper extends PathfinderMob {
         setAggressive(target != null);
     }
     public boolean insideArena(CrystalFrog frog) {
-        return frog.level() == level() && frog.position().distanceToSqr(Vec3.atCenterOf(altar().south(8))) <= 16 * 16;
+        return allowsDuelPosition(frog, frog.position());
+    }
+    public boolean allowsDuelPosition(CrystalFrog frog, Vec3 point) {
+        return frog.level() == level() && FrogCourtSafety.inside(altar(), point, frog.getBbWidth());
     }
     public @Nullable CrystalFrog companion() {
         return level() instanceof ServerLevel server && frogId != null && server.getEntity(frogId) instanceof CrystalFrog frog ? frog : null;
@@ -83,6 +87,9 @@ public final class FrogKeeper extends PathfinderMob {
         if (defeated) { tell(player, "unsealed"); return; }
         CrystalFrog frog = companion();
         if (frog == null) { tell(player, "companion_unavailable"); return; }
+        if (!frog.isDueling() && !insideArena(frog) && !FrogCourtSafety.recall(frog)) {
+            tell(player, "recall_blocked"); return;
+        }
         CrystalFrogDuels.challengeKeeper(player, this, frog);
     }
     public static void tell(Player player, String key, Object... args) {

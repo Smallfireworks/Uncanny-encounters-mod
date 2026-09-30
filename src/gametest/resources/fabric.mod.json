@@ -11,7 +11,8 @@
       "com.ignilumen.uncannyencounters.LureGameTests",
       "com.ignilumen.uncannyencounters.entity.CrystalFrogTalentGameTests",
       "com.ignilumen.uncannyencounters.entity.crystalfrog.GeodeFrogGameTests",
-      "com.ignilumen.uncannyencounters.entity.FrogBreedingGameTests"
+      "com.ignilumen.uncannyencounters.entity.FrogBreedingGameTests",
+      "com.ignilumen.uncannyencounters.entity.FrogStorageGameTests"
     ],
     "fabric-client-gametest": [
       "com.ignilumen.uncannyencounters.CaveAnglerClientTest"
