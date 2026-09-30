@@ -18,7 +18,10 @@ public final class CrystalFrogRenderer extends MobRenderer<CrystalFrog, CrystalF
     @Override public Identifier getTextureLocation(CrystalFrogRenderState state) { return TEXTURE; }
     @Override public void extractRenderState(CrystalFrog entity, CrystalFrogRenderState state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
-        state.hopProgress = entity.hopProgress(partialTick);
+        state.hindLegRotation = entity.hopAnimation().hindLeg(partialTick);
+        state.frontLegRotation = entity.hopAnimation().frontLeg(partialTick);
+        state.hopPitch = entity.hopAnimation().pitch(partialTick);
+        state.landingCompression = entity.hopAnimation().landing(partialTick);
         state.reflectionProgress = entity.reflectionProgress(partialTick);
         state.attackProgress = entity.getSwingAnimation(partialTick);
         state.sitting = entity.isInSittingPose();

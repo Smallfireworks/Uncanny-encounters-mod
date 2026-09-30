@@ -37,9 +37,20 @@ public final class CrystalFrogModel extends EntityModel<CrystalFrogRenderState> 
             leftLeg.yRot = 0.1F;
             rightLeg.yRot = -0.1F;
         } else {
-            float extension = Mth.sin(state.hopProgress * Mth.PI);
-            leftLeg.xRot = rightLeg.xRot = extension * 0.35F;
-            leftArm.xRot = rightArm.xRot = -extension * 0.25F;
+            float impact = state.landingCompression;
+            // Push the hind legs back on ascent, fold at the apex, then reach for the floor.
+            leftLeg.xRot = rightLeg.xRot = state.hindLegRotation + impact * 0.1F;
+            leftArm.xRot = rightArm.xRot = state.frontLegRotation - impact * 0.06F;
+            float pitch = state.hopPitch;
+            ModelPart root = root();
+            float baseScale = root.yScale;
+            root.xScale *= 1 + impact * 0.025F;
+            root.yScale *= 1 - impact * 0.045F;
+            root.zScale *= 1 + impact * 0.025F;
+            root.xRot += pitch;
+            // Squash around the feet, pitch around the torso, keeping every mesh part together.
+            root.y += 24 * (baseScale - root.yScale) + 21.5F * root.yScale * (1 - Mth.cos(pitch));
+            root.z -= 21.5F * root.yScale * Mth.sin(pitch);
         }
         head.z -= Mth.sin(state.attackProgress * Mth.PI) * 0.35F;
         float flare = 1 + Mth.sin(state.reflectionProgress * Mth.PI) * 0.025F;

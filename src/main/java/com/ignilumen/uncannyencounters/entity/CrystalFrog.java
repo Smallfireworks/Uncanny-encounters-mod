@@ -3,6 +3,7 @@ package com.ignilumen.uncannyencounters.entity;
 import com.ignilumen.uncannyencounters.UncannyEncounters;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogAi;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogDefense;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogHopAnimation;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogMoveControl;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogOwnerSupport;
 import com.ignilumen.uncannyencounters.item.ModItems;
@@ -10,6 +11,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.syncher.EntityDataAccessor;
+import net.minecraft.network.syncher.EntityDataSerializers;
+import net.minecraft.network.syncher.SynchedEntityData;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
@@ -49,8 +53,10 @@ public final class CrystalFrog extends TamableAnimal {
     public static final ResourceKey<DamageType> REFLECTION_DAMAGE = ResourceKey.create(
             Registries.DAMAGE_TYPE, UncannyEncounters.id("crystal_reflection"));
     public static final TagKey<Block> HABITAT = TagKey.create(Registries.BLOCK, UncannyEncounters.id("crystal_frog_habitat"));
-    private static final byte HOP_EVENT = 1, REFLECT_EVENT = 61;
-    private int responseTicks, hopAnimationTicks, reflectionTicks;
+    private static final byte REFLECT_EVENT = 61;
+    private static final EntityDataAccessor<Byte> HOP_PHASE = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BYTE);
+    private int responseTicks, reflectionTicks;
+    private final CrystalFrogHopAnimation hopAnimation = new CrystalFrogHopAnimation();
     private @Nullable Vec3 threatPosition;
     private @Nullable LivingEntity provoker;
     private final CrystalFrogOwnerSupport ownerSupport = new CrystalFrogOwnerSupport(this);
@@ -71,6 +77,10 @@ public final class CrystalFrog extends TamableAnimal {
     }
 
     @Override protected void registerGoals() { CrystalFrogAi.register(this, goalSelector); }
+    @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
+        super.defineSynchedData(builder);
+        builder.define(HOP_PHASE, CrystalFrogHopAnimation.GROUNDED);
+    }
     @Override protected PathNavigation createNavigation(Level level) { return new AmphibiousPathNavigation(this, level); }
     @Override protected void customServerAiStep(ServerLevel level) {
         ownerSupport.tick();
@@ -203,7 +213,6 @@ public final class CrystalFrog extends TamableAnimal {
     }
 
     @Override public void tick() {
-        if (hopAnimationTicks > 0) hopAnimationTicks--;
         if (reflectionTicks > 0) reflectionTicks--;
         if (!level().isClientSide()) {
             if (responseTicks > 0 && --responseTicks == 0) {
@@ -222,6 +231,14 @@ public final class CrystalFrog extends TamableAnimal {
             }
         }
         super.tick();
+        boolean animationDisabled = isInWater() || isInSittingPose() || isPassenger() || !isAlive();
+        if (level().isClientSide()) {
+            hopAnimation.tick(animationDisabled ? CrystalFrogHopAnimation.DISABLED : entityData.get(HOP_PHASE));
+        } else {
+            // Sample authoritative physics after travel; remote position interpolation
+            // is not the animation clock. Metadata also initializes newly tracking clients.
+            entityData.set(HOP_PHASE, CrystalFrogHopAnimation.phase(onGround(), animationDisabled, getDeltaMovement().y));
+        }
     }
 
     /** Real jumps, using vanilla collision and gravity. */
@@ -229,19 +246,14 @@ public final class CrystalFrog extends TamableAnimal {
         float power = getJumpPower(uphill ? 0.5F / 0.42F : 0.36F / 0.42F);
         setDeltaMovement(x, Math.max(power, getDeltaMovement().y), z);
         needsSync = true;
-        hopAnimationTicks = 12;
-        level().broadcastEntityEvent(this, HOP_EVENT);
         playSound(SoundEvents.FROG_LONG_JUMP, 0.25F, 1.15F + random.nextFloat() * 0.2F);
     }
 
     @Override public void handleEntityEvent(byte event) {
-        if (event == HOP_EVENT) hopAnimationTicks = 12;
-        else if (event == REFLECT_EVENT) reflectionTicks = 6;
+        if (event == REFLECT_EVENT) reflectionTicks = 6;
         else super.handleEntityEvent(event);
     }
-    public float hopProgress(float partialTick) {
-        return hopAnimationTicks == 0 ? 0 : Math.clamp((12 - hopAnimationTicks + partialTick) / 12F, 0F, 1F);
-    }
+    public CrystalFrogHopAnimation hopAnimation() { return hopAnimation; }
     public float reflectionProgress(float partialTick) { return Math.max(0, reflectionTicks - partialTick) / 6F; }
 
     @Override protected void travelInWater(Vec3 input, double gravity, boolean falling, double oldY) {
