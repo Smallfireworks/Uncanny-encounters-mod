@@ -23,12 +23,13 @@ public final class CrystalFrogRenderer extends MobRenderer<CrystalFrog, CrystalF
         addLayer(new CrystalShellLayer(this));
     }
     @Override public CrystalFrogRenderState createRenderState() { return new CrystalFrogRenderState(); }
-    @Override public Identifier getTextureLocation(CrystalFrogRenderState state) { return TEXTURE; }
+    @Override public Identifier getTextureLocation(CrystalFrogRenderState state) { return state.variant.equals("normal") ? TEXTURE : UncannyEncounters.id("textures/entity/crystal_frog_" + state.variant + ".png"); }
     @Override protected void scale(CrystalFrogRenderState state, PoseStack poses) {
         poses.scale(state.ageScale, state.ageScale, state.ageScale);
     }
     @Override public void extractRenderState(CrystalFrog entity, CrystalFrogRenderState state, float partialTick) {
         super.extractRenderState(entity, state, partialTick);
+        state.variant = entity.variant().id();
         state.hindLegRotation = entity.hopAnimation().hindLeg(partialTick);
         state.frontLegRotation = entity.hopAnimation().frontLeg(partialTick);
         state.hopPitch = entity.hopAnimation().pitch(partialTick);

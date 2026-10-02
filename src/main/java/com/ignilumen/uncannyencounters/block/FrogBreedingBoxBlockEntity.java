@@ -58,7 +58,7 @@ public final class FrogBreedingBoxBlockEntity extends BaseContainerBlockEntity {
         if (FrogCageData.identity(items.get(0)).isEmpty() || FrogCageData.identity(items.get(1)).isEmpty()) return 1;
         if (FrogCageData.identity(items.get(0)).equals(FrogCageData.identity(items.get(1)))) return 7;
         if (a.owner().isEmpty() || b.owner().isEmpty() || !a.owner().get().equals(player.getUUID()) || !b.owner().get().equals(player.getUUID())) return 2;
-        if (a.king() || b.king()) return 3;
+        if (a.infertile() || b.infertile()) return 3;
         if (a.age() != 0 || b.age() != 0) return 4;
         if (!items.get(SHARDS).is(Items.AMETHYST_SHARD) || items.get(SHARDS).getCount() < 2 || !items.get(CAGES).is(ModItems.FROG_CAGE)) return 5;
         if (emptyChildSlot() < 0) return 6;

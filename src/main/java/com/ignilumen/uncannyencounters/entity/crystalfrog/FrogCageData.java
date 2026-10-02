@@ -22,8 +22,9 @@ import org.jspecify.annotations.Nullable;
 /** Full frog data stays on a non-stackable item; the small summary is safe to display on the client. */
 public final class FrogCageData {
     public record Summary(float health, float maxHealth, double attack, int age, boolean ageLocked,
-                          CrystalFrogStyle style, List<CrystalFrogTalent> talents, Optional<UUID> owner) {
+                          CrystalFrogStyle style, List<CrystalFrogTalent> talents, Optional<UUID> owner, CrystalFrogVariant variant) {
         public boolean king() { return talents.contains(CrystalFrogTalent.FROG_KING); }
+        public boolean infertile() { return king() || variant != CrystalFrogVariant.NORMAL; }
         public boolean nursery() { return talents.contains(CrystalFrogTalent.CRYSTAL_NURSERY); }
     }
     public static boolean filled(ItemStack stack) {
@@ -43,10 +44,13 @@ public final class FrogCageData {
         return new Summary(s.getFloatOr("Health", 0), s.getFloatOr("MaxHealth", 0), s.getDoubleOr("Attack", 0),
                 s.getIntOr("Age", 0), s.getBooleanOr("AgeLocked", false), CrystalFrogStyle.from(s.getStringOr("Style", "guard"), new UUID(0, 0)),
                 List.of(CrystalFrogTalent.from(s.getStringOr("Talent", "none")), CrystalFrogTalent.from(s.getStringOr("SecondTalent", "none")))
-                        .stream().filter(t -> t != CrystalFrogTalent.NONE).toList(), s.read("Owner", UUIDUtil.CODEC));
+                        .stream().filter(t -> t != CrystalFrogTalent.NONE).toList(), s.read("Owner", UUIDUtil.CODEC), CrystalFrogVariant.from(s.getStringOr("Variant", "normal")));
     }
     public static Component frogName(ItemStack stack) {
-        return stack.getOrDefault(DataComponents.CUSTOM_NAME, Component.translatable("entity.uncannyencounters.crystal_frog"));
+        var summary = summary(stack);
+        Component name = summary == null || summary.variant() == CrystalFrogVariant.NORMAL
+                ? Component.translatable("entity.uncannyencounters.crystal_frog") : summary.variant().description();
+        return stack.getOrDefault(DataComponents.CUSTOM_NAME, name);
     }
     public static ItemStack pack(ServerLevel level, CrystalFrog frog) {
         var output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, level.registryAccess());
@@ -59,6 +63,7 @@ public final class FrogCageData {
         summary.putDouble("Attack", frog.getAttributeValue(Attributes.ATTACK_DAMAGE));
         summary.putInt("Age", frog.getAge());
         summary.putBoolean("AgeLocked", entity.getBooleanOr("AgeLocked", false));
+        summary.putString("Variant", frog.variant().id());
         summary.putString("Style", frog.duelStyle().id());
         var talents = frog.talents().all();
         summary.putString("Talent", talents.isEmpty() ? "none" : talents.getFirst().id());

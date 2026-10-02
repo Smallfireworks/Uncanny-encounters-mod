@@ -13,6 +13,10 @@ import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogMoveControl
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogOwnerSupport;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogTalent;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogGenetics;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant;
+import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogVariantCombat;
+import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.damagesource.DamageTypes;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogBreedingHabitat;
 import com.ignilumen.uncannyencounters.entity.crystalfrog.FrogKingSwallow;
 import com.ignilumen.uncannyencounters.entity.frogkeeper.FrogKeeperEncounters;
@@ -90,6 +94,8 @@ public final class CrystalFrog extends TamableAnimal {
     private static final EntityDataAccessor<Boolean> TALENT_SHELL = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.BOOLEAN);
     private static final EntityDataAccessor<Float> TALENT_SHELL_HEALTH = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.FLOAT);
     private static final EntityDataAccessor<Integer> TONGUE_TARGET = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.INT);
+    private static final EntityDataAccessor<String> VARIANT = SynchedEntityData.defineId(CrystalFrog.class, EntityDataSerializers.STRING);
+    private final FrogVariantCombat variantCombat = new FrogVariantCombat(this);
     private static final Identifier KING_BONUS = UncannyEncounters.id("frog_king");
     private int responseTicks, reflectionTicks;
     private boolean traitsInitialized;
@@ -145,6 +151,8 @@ public final class CrystalFrog extends TamableAnimal {
         super.addAdditionalSaveData(output);
         output.putBoolean("CrystalFrogTraitsInitialized", traitsInitialized);
         output.putString("CrystalFrogStyle", duelStyle().id());
+        output.putString("CrystalFrogVariant", variant().id());
+        variantCombat.save(output);
         if (breedingParents != null) output.store("CrystalFrogParents", CompoundTag.CODEC, breedingParents);
         if (keeperId != null) output.store("FrogKeeper", UUIDUtil.CODEC, keeperId);
         swallow.save(output);
@@ -165,6 +173,8 @@ public final class CrystalFrog extends TamableAnimal {
                 input.read("Health", Codec.FLOAT).isPresent() || input.childrenList("attributes").isPresent());
         duelStyle = CrystalFrogStyle.from(input.getStringOr("CrystalFrogStyle", ""), getUUID());
         duel = null;
+        entityData.set(VARIANT, CrystalFrogVariant.from(input.getStringOr("CrystalFrogVariant", "normal")).id());
+        variantCombat.load(input);
         duelCombat.reset();
         talents.load(input, traitsInitialized);
         // Vanilla restores Health before our transient king modifiers exist.
@@ -177,6 +187,7 @@ public final class CrystalFrog extends TamableAnimal {
     @Override protected void registerGoals() { CrystalFrogAi.register(this, goalSelector); }
     @Override protected void defineSynchedData(SynchedEntityData.Builder builder) {
         super.defineSynchedData(builder);
+        builder.define(VARIANT, "normal");
         builder.define(HOP_PHASE, CrystalFrogHopAnimation.GROUNDED);
         builder.define(DUEL_POSE, CrystalFrogDuelCombat.NORMAL);
         builder.define(TALENT_CASTING, false);
@@ -237,7 +248,7 @@ public final class CrystalFrog extends TamableAnimal {
                 float floor = getMaxHealth() * CrystalFrogDuels.DEFEAT_FRACTION;
                 float safeDamage = Math.max(0, getHealth() - floor);
                 Vec3 incoming = source.getDirectEntity() instanceof CrystalSlimeShot shot ? shot.incomingPoint(this) : attacker.position();
-                float defendedDamage = source.is(TALENT_BURST_DAMAGE) ? amount : duelCombat.defend(attacker, incoming, amount);
+                float defendedDamage = (source.is(TALENT_BURST_DAMAGE) || source.is(DamageTypes.SONIC_BOOM)) ? amount : duelCombat.defend(attacker, incoming, amount);
                 boolean hurt = safeDamage > 0 && super.hurtServer(level, source, Math.min(defendedDamage, safeDamage));
                 if (hurt) talents.afterHurt(previousHealth);
                 if (getHealth() <= floor + 0.001F) match.defeated(this);
@@ -308,6 +319,24 @@ public final class CrystalFrog extends TamableAnimal {
     public boolean isDueling() { return duel != null; }
     public boolean isDuelingWith(CrystalFrog other) { return duel != null && duel.opponents(this, other); }
     public CrystalFrogDuels.@Nullable Match duelMatch() { return duel; }
+    public CrystalFrogVariant variant() { return CrystalFrogVariant.from(entityData.get(VARIANT)); }
+    public FrogVariantCombat variantCombat() { return variantCombat; }
+    public boolean isInfertile() { return isKing() || variant() != CrystalFrogVariant.NORMAL; }
+    public boolean convertVariant(CrystalFrogVariant next) {
+        if (level().isClientSide() || isRemoved() || isKeeperFrog() || variant() != CrystalFrogVariant.NORMAL
+                || next == CrystalFrogVariant.NORMAL) return false;
+        entityData.set(VARIANT, next.id());
+        resetLove();
+        talents.clearActive();
+        variantCombat.clear();
+        swallow.clear();
+        setPersistenceRequired();
+        playSound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.8F, 0.7F);
+        return true;
+    }
+    @Override protected Component getTypeName() {
+        return variant() == CrystalFrogVariant.NORMAL ? super.getTypeName() : variant().description();
+    }
     public CrystalFrogTalents talents() { return talents; }
     public FrogKingSwallow swallow() { return swallow; }
     public boolean isSeekingAir() { return seekingAir; }
@@ -321,6 +350,7 @@ public final class CrystalFrog extends TamableAnimal {
         if (!isKeeperFrog() || isDueling()) return;
         if (getTargetUnchecked() != target) {
             talents.clearActive();
+            variantCombat.clear();
             swallow.clear();
             navigation.stop();
             moveControl.setWait();
@@ -393,6 +423,7 @@ public final class CrystalFrog extends TamableAnimal {
         duel = match;
         duelCombat.reset();
         talents.beginDuel();
+        variantCombat.clear();
         swallow.clear();
         resetLove();
         victoryTicks = responseTicks = 0;
@@ -411,6 +442,7 @@ public final class CrystalFrog extends TamableAnimal {
         duel = null;
         duelCombat.reset();
         talents.clearActive();
+        variantCombat.clear();
         swallow.clear();
         sit(true);
         if (won) {
@@ -428,6 +460,20 @@ public final class CrystalFrog extends TamableAnimal {
             if (stack.is(Items.STICK) && getOwner() instanceof FrogKeeper keeper) keeper.challenge(player);
             return InteractionResult.SUCCESS;
         }
+        if (stack.is(Items.ECHO_SHARD) || stack.is(Items.ENDER_EYE)) {
+            if (!level().isClientSide()) {
+                if (!isTame() || !isOwnedBy(player) || variant() != CrystalFrogVariant.NORMAL
+                        || isDueling() || wantsRetaliation() || isFrightened() || isInLove()) {
+                    player.sendSystemMessage(Component.translatable("message.uncannyencounters.crystal_frog.variant_unavailable"));
+                } else {
+                    CrystalFrogVariant next = stack.is(Items.ECHO_SHARD) ? CrystalFrogVariant.ECHO : CrystalFrogVariant.ENDER;
+                    stack.consume(1, player);
+                    boolean converted = random.nextFloat() < 0.2F && convertVariant(next);
+                    level().broadcastEntityEvent(this, converted ? (byte)7 : (byte)6);
+                }
+            }
+            return InteractionResult.SUCCESS;
+        }
         if (isTame() && stack.isEmpty() && player.isShiftKeyDown()) {
             if (!level().isClientSide()) player.sendSystemMessage(Component.translatable(
                     "message.uncannyencounters.crystal_frog.stats", getDisplayName(),
@@ -440,7 +486,7 @@ public final class CrystalFrog extends TamableAnimal {
             }
             return InteractionResult.SUCCESS.withoutItem();
         }
-        if (isTame() && stack.is(ModItems.ACTIVATED_AMETHYST)) {
+        if (isTame() && (variant() == CrystalFrogVariant.ZOMBIE ? stack.is(Items.ROTTEN_FLESH) : stack.is(ModItems.ACTIVATED_AMETHYST))) {
             if (isDueling()) {
                 if (!level().isClientSide()) CrystalFrogDuels.tell(player, "no_feeding");
                 return InteractionResult.SUCCESS;
@@ -458,10 +504,12 @@ public final class CrystalFrog extends TamableAnimal {
             CrystalFrogDuels.useStick(player, this);
             return InteractionResult.SUCCESS;
         }
+        if (variant() == CrystalFrogVariant.ZOMBIE && (stack.is(Items.AMETHYST_SHARD) || stack.is(ModItems.ACTIVATED_AMETHYST)))
+            return InteractionResult.SUCCESS;
         if (stack.is(Items.AMETHYST_SHARD)) {
-            if (isKing() && !isBaby() || isDueling() || wantsRetaliation() || isFrightened()) {
+            if (isInfertile() && !isBaby() || isDueling() || wantsRetaliation() || isFrightened()) {
                 if (!level().isClientSide()) player.sendSystemMessage(Component.translatable(
-                        "message.uncannyencounters.crystal_frog." + (isKing() ? "infertile" : "breeding_busy")));
+                        "message.uncannyencounters.crystal_frog." + (isInfertile() ? "infertile" : "breeding_busy")));
                 return InteractionResult.SUCCESS;
             }
             InteractionResult result = super.mobInteract(player, hand);
@@ -471,7 +519,7 @@ public final class CrystalFrog extends TamableAnimal {
             }
             return result;
         }
-        if (!isTame() && stack.is(ModItems.ACTIVATED_AMETHYST)) {
+        if (!isTame() && variant() != CrystalFrogVariant.ZOMBIE && stack.is(ModItems.ACTIVATED_AMETHYST)) {
             if (!level().isClientSide()) {
                 stack.consume(1, player);
                 if (random.nextInt(3) == 0) {
@@ -500,6 +548,7 @@ public final class CrystalFrog extends TamableAnimal {
         if (duel != null) duel.cancel("cancelled");
         if (sitting) {
             talents.clearActive();
+            variantCombat.clear();
             swallow.clear();
             responseTicks = 0;
             provoker = null;
@@ -599,6 +648,13 @@ public final class CrystalFrog extends TamableAnimal {
     }
     @Override protected int getBaseExperienceReward(ServerLevel level) { return 5; }
     @Override public void die(DamageSource source) {
+        // Intercept before TamableAnimal death messages, loot, kill credit and dying pose.
+        if (level() instanceof ServerLevel && !isRemoved() && !isKeeperFrog() && variant() == CrystalFrogVariant.NORMAL
+                && (source.getEntity() instanceof Zombie || source.getEntity() instanceof ZombiePlayer)
+                && random.nextFloat() < 0.5F && convertVariant(CrystalFrogVariant.ZOMBIE)) {
+            setHealth(getMaxHealth());
+            return;
+        }
         if (keeperId != null && level() instanceof ServerLevel server)
             FrogKeeperEncounters.get(server).frogDied(keeperId, server.getGameTime());
         super.die(source);
@@ -607,9 +663,9 @@ public final class CrystalFrog extends TamableAnimal {
     @Override public boolean canUsePortal(boolean ignorePassenger) { return !isKeeperFrog() && super.canUsePortal(ignorePassenger); }
     @Override protected boolean canRide(Entity vehicle) { return !isKeeperFrog() && super.canRide(vehicle); }
     @Override protected boolean canBeABaby() { return true; }
-    @Override public boolean isFood(ItemStack stack) { return stack.is(Items.AMETHYST_SHARD); }
+    @Override public boolean isFood(ItemStack stack) { return variant() != CrystalFrogVariant.ZOMBIE && stack.is(Items.AMETHYST_SHARD); }
     public boolean breedingAvailable() {
-        return isAlive() && !isKing() && !isKeeperFrog() && !isBaby() && getAge() == 0
+        return isAlive() && !isInfertile() && !isKeeperFrog() && !isBaby() && getAge() == 0
                 && !isDueling() && !wantsRetaliation() && !isFrightened();
     }
     @Override public boolean canFallInLove() { return breedingAvailable() && super.canFallInLove(); }

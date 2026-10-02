@@ -89,7 +89,7 @@ public final class FrogBreedingBoxScreen extends AbstractContainerScreen<FrogBre
         for (int i = 0; i < frog.talents().size(); i++) fitted(graphics, frog.talents().get(i).description(), x, 73 + 10 * i, 134, TEXT);
         int seconds = (Math.abs(frog.age()) + 19) / 20;
         String time = String.format(java.util.Locale.ROOT, "%d:%02d", seconds / 60, seconds % 60);
-        String state = frog.age() < 0 ? (frog.ageLocked() ? "locked" : "growing") : frog.king() ? "infertile" : frog.age() > 0 ? "cooldown" : "adult";
+        String state = frog.age() < 0 ? (frog.ageLocked() ? "locked" : "growing") : frog.infertile() ? "infertile" : frog.age() > 0 ? "cooldown" : "adult";
         fitted(graphics, Component.translatable("screen.uncannyencounters.breeding." + state, time), x, 93, 134, MUTED);
     }
     private void fitted(GuiGraphicsExtractor graphics, Component text, int x, int y, int width, int color) {

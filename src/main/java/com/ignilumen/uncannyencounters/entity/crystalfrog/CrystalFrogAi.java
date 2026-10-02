@@ -17,6 +17,15 @@ public final class CrystalFrogAi {
         goals.addGoal(1, new Flee(frog));
         goals.addGoal(1, new Goal() {
             { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
+            @Override public boolean canUse() { return frog.variantCombat().canUse(); }
+            @Override public boolean canContinueToUse() { return frog.variantCombat().canContinueToUse(); }
+            @Override public boolean requiresUpdateEveryTick() { return true; }
+            @Override public void start() { frog.variantCombat().start(); }
+            @Override public void tick() { frog.variantCombat().tick(); }
+            @Override public void stop() { frog.variantCombat().stop(); }
+        });
+        goals.addGoal(1, new Goal() {
+            { setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK, Flag.JUMP)); }
             @Override public boolean canUse() { return frog.swallow().canStart(); }
             @Override public boolean canContinueToUse() { return frog.swallow().active(); }
             @Override public boolean requiresUpdateEveryTick() { return true; }
@@ -63,8 +72,8 @@ public final class CrystalFrogAi {
         });
         goals.addGoal(4, new FollowParentGoal(frog, 1));
         goals.addGoal(5, new TemptGoal(frog, 1, stack -> stack.is(ModItems.ACTIVATED_AMETHYST), false) {
-            @Override public boolean canUse() { return !frog.isTame() && super.canUse(); }
-            @Override public boolean canContinueToUse() { return !frog.isTame() && super.canContinueToUse(); }
+            @Override public boolean canUse() { return !frog.isTame() && frog.variant() != CrystalFrogVariant.ZOMBIE && super.canUse(); }
+            @Override public boolean canContinueToUse() { return !frog.isTame() && frog.variant() != CrystalFrogVariant.ZOMBIE && super.canContinueToUse(); }
         });
         goals.addGoal(6, new RandomStrollGoal(frog, 1, 35) {
             @Override public boolean canUse() { return !frog.isKeeperFrog() && !frog.isOrderedToSit() && !frog.isDueling() && super.canUse(); }

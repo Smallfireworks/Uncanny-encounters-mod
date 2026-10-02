@@ -211,4 +211,101 @@ public final class CrystalFrogTalentGameTests {
             test.succeed();
         });
     }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void variantStoragePreservesIdentityAndDisablesBreeding(GameTestHelper test) {
+        var frog = frog(test, CrystalFrogTalent.SCATTER_SLIME, new Vec3(3, 1, 3));
+        var owner = owner(test);
+        frog.tame(owner);
+        frog.talents().setTalents(java.util.List.of(CrystalFrogTalent.SCATTER_SLIME, CrystalFrogTalent.DOUBLE_ECHO));
+        frog.setHealth(13);
+        var id = frog.getUUID();
+        test.assertTrue(frog.convertVariant(com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.ECHO), "Normal frog can transform");
+        test.assertTrue(!frog.convertVariant(com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.ENDER), "Variants must be mutually exclusive");
+        var cage = com.ignilumen.uncannyencounters.entity.crystalfrog.FrogCageData.pack(test.getLevel(), frog);
+        var loaded = com.ignilumen.uncannyencounters.entity.crystalfrog.FrogCageData.unpack(test.getLevel(), cage);
+        test.assertTrue(loaded != null && loaded.getUUID().equals(id) && loaded.isOwnedBy(owner)
+                && loaded.getHealth() == 13 && loaded.getMaxHealth() == 20
+                && loaded.talents().all().equals(frog.talents().all()) && loaded.variant() == frog.variant(),
+                "Cage must preserve variant, health, both talents, UUID and owner");
+        test.assertTrue(!loaded.breedingAvailable() && !loaded.canFallInLove()
+                && com.ignilumen.uncannyencounters.entity.crystalfrog.FrogCageData.summary(cage).infertile(), "Both world and cage must report infertility");
+        test.assertTrue(!loaded.talents().canStartSpit(), "Echo must disable scatter slime without deleting it");
+        var legacy = save(test, frog);
+        legacy.remove("CrystalFrogVariant");
+        loaded.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), legacy));
+        test.assertTrue(loaded.variant() == com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.NORMAL, "Old saves remain normal frogs");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void zombieConversionKeepsOwnerAndChangesFood(GameTestHelper test) {
+        var frog = frog(test, CrystalFrogTalent.CRYSTAL_SHELL, new Vec3(3, 1, 3));
+        var owner = owner(test);
+        frog.tame(owner);
+        var zombie = test.spawn(EntityTypes.ZOMBIE, new Vec3(6, 1, 6));
+        zombie.setNoAi(true);
+        // Select a known successful roll without relying on a particular RandomSource implementation.
+        long seed = 0;
+        while (true) {
+            frog.getRandom().setSeed(seed);
+            if (frog.getRandom().nextFloat() < 0.5F) break;
+            seed++;
+        }
+        frog.getRandom().setSeed(seed);
+        frog.setHealth(0);
+        frog.die(test.getLevel().damageSources().mobAttack(zombie));
+        test.assertTrue(frog.isAlive() && frog.getHealth() == 20 && frog.isOwnedBy(owner)
+                && frog.variant() == com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.ZOMBIE,
+                "Successful lethal conversion must restore health without losing the pet");
+        frog.setHealth(10);
+        owner.setItemInHand(InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(com.ignilumen.uncannyencounters.item.ModItems.ACTIVATED_AMETHYST, 2));
+        frog.mobInteract(owner, InteractionHand.MAIN_HAND);
+        test.assertTrue(frog.getHealth() == 10 && owner.getMainHandItem().getCount() == 2, "Amethyst must have no effect");
+        owner.setItemInHand(InteractionHand.MAIN_HAND, new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ROTTEN_FLESH, 2));
+        frog.mobInteract(owner, InteractionHand.MAIN_HAND);
+        test.assertTrue(frog.getHealth() == 14 && owner.getMainHandItem().getCount() == 1, "Rotten flesh heals four");
+        frog.setHealth(20);
+        frog.mobInteract(owner, InteractionHand.MAIN_HAND);
+        test.assertTrue(owner.getMainHandItem().getCount() == 1, "Full health must not consume food");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void sonicPassesWallsButStopsAtDuelFloor(GameTestHelper test) {
+        arena(test);
+        var a = frog(test, CrystalFrogTalent.NONE, new Vec3(3.5, 1, 3.5));
+        var b = frog(test, CrystalFrogTalent.NONE, new Vec3(3.5, 1, 6.5));
+        a.convertVariant(com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.ECHO);
+        duel(test, a, b);
+        for (int y = 1; y <= 3; y++) test.setBlock(new BlockPos(3, y, 5), Blocks.STONE);
+        b.getAttribute(Attributes.ARMOR).setBaseValue(30);
+        b.setHealth(6);
+        test.assertTrue(a.variantCombat().canUse(), "Sonic can start through a wall without a ranged talent");
+        a.variantCombat().start();
+        for (int tick = 0; tick < 20; tick++) a.variantCombat().tick();
+        test.assertTrue(b.getHealth() == 5 && b.isAlive() && !a.isDueling(), "Sonic bypasses armor and stops the match at 25 percent");
+        float health = b.getHealth();
+        a.variantCombat().tick();
+        test.assertTrue(b.getHealth() == health, "Completed casts cannot damage again");
+        test.succeed();
+    }
+
+    @GameTest(structure = "uncannyencounters-test:arena", maxTicks = 20)
+    public void enderAttackUsesSafeLandingAndCooldown(GameTestHelper test) {
+        arena(test);
+        var frog = frog(test, CrystalFrogTalent.CRYSTAL_ECHO, new Vec3(2.5, 1, 2.5));
+        var target = dailyTarget(test, frog, new Vec3(6.5, 1, 6.5));
+        frog.convertVariant(com.ignilumen.uncannyencounters.entity.crystalfrog.CrystalFrogVariant.ENDER);
+        Vec3 start = frog.position();
+        float health = target.getHealth();
+        test.assertTrue(frog.variantCombat().canUse(), "Ender attack can start during owner support");
+        frog.variantCombat().start();
+        frog.variantCombat().tick();
+        test.assertTrue(frog.distanceToSqr(start) > 1 && target.getHealth() < health,
+                "Ender frog teleports near its target and deals ordinary melee damage");
+        test.assertTrue(test.getLevel().noCollision(frog) && !frog.variantCombat().canUse(),
+                "Landing must be unobstructed and teleport must enter cooldown");
+        test.succeed();
+    }
 }

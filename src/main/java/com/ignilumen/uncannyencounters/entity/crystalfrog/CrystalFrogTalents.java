@@ -238,7 +238,7 @@ public final class CrystalFrogTalents {
 
     public boolean canStartSpit() {
         LivingEntity target = frog.getTarget();
-        return hasFamily(CrystalFrogTalent.SLIME_SPIT) && now() >= spitReadyAt && target != null
+        return frog.variant() != CrystalFrogVariant.ECHO && hasFamily(CrystalFrogTalent.SLIME_SPIT) && now() >= spitReadyAt && target != null
                 && frog.isTalentTarget(target) && (frog.onGround() || frog.isInWater())
                 && (!frog.isDueling() || frog.duelCombat().action() == CrystalFrogDuelCombat.NORMAL)
                 && inSpitRange(target) && frog.getSensing().hasLineOfSight(target);

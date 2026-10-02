@@ -78,9 +78,10 @@ public final class FrogCageItem extends Item {
         if (frog == null) { tooltip.accept(Component.translatable("tooltip.uncannyencounters.frog_cage.empty")); return; }
         tooltip.accept(Component.translatable("tooltip.uncannyencounters.frog_cage.stats", FrogCageData.number(frog.health()),
                 FrogCageData.number(frog.maxHealth()), FrogCageData.number(frog.attack())));
+        tooltip.accept(frog.variant().description());
         tooltip.accept(frog.style().description());
         for (var talent : frog.talents()) tooltip.accept(talent.description());
-        if (frog.king()) tooltip.accept(Component.translatable("message.uncannyencounters.crystal_frog.infertile"));
+        if (frog.infertile()) tooltip.accept(Component.translatable("message.uncannyencounters.crystal_frog.infertile"));
         if (frog.age() != 0) tooltip.accept(Component.translatable(frog.age() < 0 ? "tooltip.uncannyencounters.frog_cage.growth"
                 : "tooltip.uncannyencounters.frog_cage.cooldown", (Math.abs(frog.age()) + 19) / 20));
         if (frog.ageLocked()) tooltip.accept(Component.translatable("tooltip.uncannyencounters.frog_cage.age_locked"));
